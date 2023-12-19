@@ -1,5 +1,5 @@
 (*
- * CBFS Connect 2024 Delphi Edition - Sample Project
+ * CBFS Connect 2022 Delphi Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -2697,7 +2697,7 @@ begin
     CloseHandle(hFile);
 end;
 
-function TFormFolderDrive.ConvertRelativePathToAbsolute(const path: string; acceptMountingPoint: Boolean = False): string;
+function TFormFolderDrive.ConvertRelativePathToAbsolute(const path: string; acceptMountingPoint : boolean): string;
 var
   res, remainedPath, homeDir: string;
   semicolonCount: Integer;
@@ -2717,7 +2717,7 @@ begin
         Exit(TPath.Combine(homeDir, Copy(path, 2, MaxInt)));
     end;
 
-    semicolonCount := Length(TPath.SplitPath(path)) - 1;
+    semicolonCount := Length(path.Split([';'])) - 1;
     if semicolonCount = 2 then
     begin
       if not acceptMountingPoint then
@@ -3030,7 +3030,7 @@ procedure TFormFolderDrive.btnMountClick(Sender: TObject);
 var
   Handle: THandle;
 begin
-  FRootPath := ExcludeTrailingBackslash(ConvertRelativePathToAbsolute(edtRootPath.Text));
+  FRootPath := ExcludeTrailingBackslash(ConvertRelativePathToAbsolute(edtRootPath.Text, false));
   // The directory, pointed to by FRootPath, is opened in read-write mode 
   // to ensure that the mapped directory is accessible and can be used as a backend media.
   // When implementing your filesystem, you may want to implement a similar check of availability of your backend. 

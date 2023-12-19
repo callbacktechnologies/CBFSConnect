@@ -1,5 +1,5 @@
 /*
- * CBFS Connect 2024 C++ Edition - Sample Project
+ * CBFS Connect 2022 C++ Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -1570,6 +1570,7 @@ int main(int argc, char* argv[])
                 else
                     flags |= cbcConstants::STGMP_SIMPLE;
 #endif
+
                 if (cbfs.AddMountingPoint(mount_point, flags, 0) == 0)
                     mounted = 1;
 

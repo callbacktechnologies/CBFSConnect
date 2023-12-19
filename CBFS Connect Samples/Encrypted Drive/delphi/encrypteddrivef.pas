@@ -1,5 +1,5 @@
 (*
- * CBFS Connect 2024 Delphi Edition - Sample Project
+ * CBFS Connect 2022 Delphi Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -1687,7 +1687,7 @@ begin
       FXORData[i] := Byte(Psw[(i mod Length(Psw)) + 1]);
   end;
 
-  FRootPath := ExcludeTrailingBackslash(ConvertRelativePathToAbsolute(edtRootPath.Text));
+  FRootPath := ExcludeTrailingBackslash(ConvertRelativePathToAbsolute(edtRootPath.Text, false));
   Handle := CreateFile( PChar(FRootPath),
     GENERIC_READ,
     FILE_SHARE_READ or FILE_SHARE_WRITE or FILE_SHARE_DELETE,
@@ -1776,7 +1776,7 @@ begin
   btnDeletePoint.Enabled := lstPoints.SelCount > 0;
 end;
 
-function TFormEncryptedDrive.ConvertRelativePathToAbsolute(const path: string; acceptMountingPoint: Boolean = False): string;
+function TFormEncryptedDrive.ConvertRelativePathToAbsolute(const path: string; acceptMountingPoint: Boolean): string;
 var
   res, remainedPath, homeDir: string;
   semicolonCount: Integer;
@@ -1796,7 +1796,8 @@ begin
         Exit(TPath.Combine(homeDir, Copy(path, 2, MaxInt)));
     end;
 
-    semicolonCount := Length(TPath.SplitPath(path)) - 1;
+
+    semicolonCount := Length(path.Split([';'])) - 1;
     if semicolonCount = 2 then
     begin
       if not acceptMountingPoint then

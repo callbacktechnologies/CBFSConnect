@@ -1,5 +1,5 @@
 /*
- * CBFS Connect 2024 Java Edition - Sample Project
+ * CBFS Connect 2022 Java Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -25,7 +25,7 @@ import cbfsconnect.*;
 
 import javax.swing.*;
 
-public class fusememdrive implements FUSEEventListener {
+public class fusememdrive implements FuseEventListener {
 
     private static final String PRODUCT_GUID = "{713CC6CE-B3E2-4fd9-838D-E28F558F6866}";
     private static final int SECTOR_SIZE = 512;
@@ -82,7 +82,7 @@ public class fusememdrive implements FUSEEventListener {
 
     private static final Pattern DRIVE_LETTER_PATTERN = Pattern.compile("^[A-Za-z]:$");
 
-    private static FUSE fuse;
+    private static Fuse fuse;
     private String cabFileLocation;
     private boolean initialized;
     private String mountingPoint;
@@ -140,7 +140,7 @@ public class fusememdrive implements FUSEEventListener {
         try {
             if (!initialized) {
                 fuse.initialize(PRODUCT_GUID);
-                fuse.addFUSEEventListener(this);
+                fuse.addFuseEventListener(this);
                 initialized = true;
             }
             fuse.mount(mountingPoint);
@@ -366,7 +366,7 @@ public class fusememdrive implements FUSEEventListener {
     public static void main(String[] args) {
         try
         {
-            fuse = new FUSE();
+            fuse = new Fuse();
         }
         catch (UnsatisfiedLinkError ex)
         {
@@ -387,9 +387,9 @@ public class fusememdrive implements FUSEEventListener {
     }
 
     // -----------------------------------
-    // Implementation of FUSEEventListener
+    // Implementation of FuseEventListener
 
-    public void access(FUSEAccessEvent e) {
+    public void access(FuseAccessEvent e) {
         if (isNullOrEmpty(e.path)) {
             e.result = -ENOENT;
             return;
@@ -402,7 +402,7 @@ public class fusememdrive implements FUSEEventListener {
         }
     }
 
-    public void chmod(FUSEChmodEvent e) {
+    public void chmod(FuseChmodEvent e) {
         if (isNullOrEmpty(e.path)) {
             e.result = -ENOENT;
             return;
@@ -417,7 +417,7 @@ public class fusememdrive implements FUSEEventListener {
         file.setMode(e.mode);
     }
 
-    public void chown(FUSEChownEvent e) {
+    public void chown(FuseChownEvent e) {
         if (isNullOrEmpty(e.path)) {
             e.result = -ENOENT;
             return;
@@ -433,9 +433,9 @@ public class fusememdrive implements FUSEEventListener {
         file.setUid(e.uid);
     }
 
-    public void copyFileRange(FUSECopyFileRangeEvent e) {}
+    public void copyFileRange(FuseCopyFileRangeEvent e) {}
 
-    public void create(FUSECreateEvent e) {
+    public void create(FuseCreateEvent e) {
         String[] names = splitName(e.path);
         if (names == null) {
             e.result = -ENOENT;
@@ -467,13 +467,13 @@ public class fusememdrive implements FUSEEventListener {
         }
     }
 
-    public void destroy(FUSEDestroyEvent e) {}
+    public void destroy(FuseDestroyEvent e) {}
 
-    public void error(FUSEErrorEvent e) {
+    public void error(FuseErrorEvent e) {
         System.out.println(String.format("Error: %d, Description: %s", e.errorCode, e.description));
     }
 
-    public void FAllocate(FUSEFAllocateEvent e)
+    public void FAllocate(FuseFAllocateEvent e)
     {
         VirtualFile file = (VirtualFile) globals.get(e.fileContext);
         if (file == null)
@@ -508,11 +508,11 @@ public class fusememdrive implements FUSEEventListener {
         }
     }
 
-    public void flush(FUSEFlushEvent e) {}
+    public void flush(FuseFlushEvent e) {}
 
-    public void FSync(FUSEFSyncEvent e) {}
+    public void FSync(FuseFSyncEvent e) {}
 
-    public void getAttr(FUSEGetAttrEvent e) {
+    public void getAttr(FuseGetAttrEvent e) {
         if (isNullOrEmpty(e.path)) {
             e.result = -ENOENT;
             return;
@@ -536,11 +536,11 @@ public class fusememdrive implements FUSEEventListener {
         }
     }
 
-    public void init(FUSEInitEvent e) {}
+    public void init(FuseInitEvent e) {}
 
-    public void lock(FUSELockEvent e) {}
+    public void lock(FuseLockEvent e) {}
 
-    public void mkDir(FUSEMkDirEvent e) {
+    public void mkDir(FuseMkDirEvent e) {
         String[] names = splitName(e.path);
         if (names == null) {
             e.result = -ENOENT;
@@ -571,7 +571,7 @@ public class fusememdrive implements FUSEEventListener {
         }
     }
 
-    public void open(FUSEOpenEvent e) {
+    public void open(FuseOpenEvent e) {
         if (e.fileContext != 0) {
             VirtualFile file = (VirtualFile) globals.acquire(e.fileContext);
             if (file == null) {
@@ -589,7 +589,7 @@ public class fusememdrive implements FUSEEventListener {
         e.fileContext = globals.alloc(file);
     }
 
-    public void read(FUSEReadEvent e) {
+    public void read(FuseReadEvent e) {
         VirtualFile file = (VirtualFile) globals.get(e.fileContext);
         if (file == null) {
             e.result = -EBADF;
@@ -602,7 +602,7 @@ public class fusememdrive implements FUSEEventListener {
         e.result = file.read(e.offset, e.size, e.buffer);
     }
 
-    public void readDir(FUSEReadDirEvent e) {
+    public void readDir(FuseReadDirEvent e) {
         VirtualFile dir = Files.get(e.path);
         if (dir != null) {
             List<String> content = dir.enumerate();
@@ -621,14 +621,14 @@ public class fusememdrive implements FUSEEventListener {
         }
     }
 
-    public void release(FUSEReleaseEvent e) {
+    public void release(FuseReleaseEvent e) {
         if (e.fileContext != 0) {
             globals.release(e.fileContext);
             e.fileContext = 0;
         }
     }
 
-    public void rename(FUSERenameEvent e) {
+    public void rename(FuseRenameEvent e) {
         VirtualFile file = Files.get(e.oldPath);
         if (file == null) {
             e.result = -ENOENT;
@@ -673,7 +673,7 @@ public class fusememdrive implements FUSEEventListener {
         newParent.add(file.getName());
     }
 
-    public void rmDir(FUSERmDirEvent e) {
+    public void rmDir(FuseRmDirEvent e) {
         VirtualFile file = Files.get(e.path);
         if ((file == null) || (!file.isDirectory())) {
             e.result = -ENOENT;
@@ -682,7 +682,7 @@ public class fusememdrive implements FUSEEventListener {
         Files.delete(e.path);
     }
 
-    public void statFS(FUSEStatFSEvent e) {
+    public void statFS(FuseStatFSEvent e) {
         e.blockSize = SECTOR_SIZE;
         e.freeBlocks = (DRIVE_SIZE - Files.calcSize() + SECTOR_SIZE / 2) / SECTOR_SIZE;
         e.freeBlocksAvail = e.freeBlocks;
@@ -690,7 +690,7 @@ public class fusememdrive implements FUSEEventListener {
         e.maxFilenameLength = 255;
     }
 
-    public void truncate(FUSETruncateEvent e) {
+    public void truncate(FuseTruncateEvent e) {
         VirtualFile file = (VirtualFile) globals.get(e.fileContext);
         if (file == null) {
             file = Files.get(e.path);
@@ -702,7 +702,7 @@ public class fusememdrive implements FUSEEventListener {
         file.setSize((int)(e.size));
     }
 
-    public void unlink(FUSEUnlinkEvent e) {
+    public void unlink(FuseUnlinkEvent e) {
         VirtualFile file = Files.get(e.path);
         if (file == null) {
             e.result = -ENOENT;
@@ -715,7 +715,7 @@ public class fusememdrive implements FUSEEventListener {
         Files.delete(e.path);
     }
 
-    public void utimens(FUSEUtimensEvent e) {
+    public void utimens(FuseUtimensEvent e) {
         VirtualFile file = Files.get(e.path);
         if (file == null) {
             e.result = -ENOENT;
@@ -727,7 +727,7 @@ public class fusememdrive implements FUSEEventListener {
             file.setLastWriteTime(e.MTime);
     }
 
-    public void write(FUSEWriteEvent e) {
+    public void write(FuseWriteEvent e) {
         VirtualFile file = (VirtualFile) globals.get(e.fileContext);
         if (file == null) {
             e.result = -EBADF;
@@ -741,7 +741,7 @@ public class fusememdrive implements FUSEEventListener {
         e.result = file.write(e.buffer, e.offset, e.size);
     }
 
-    // End of FUSEEventListener implementation
+    // End of FuseEventListener implementation
     // --------------------------------------
 
     private enum DriverStatus {

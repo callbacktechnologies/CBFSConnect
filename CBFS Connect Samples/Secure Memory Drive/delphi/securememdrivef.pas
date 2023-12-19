@@ -1,5 +1,5 @@
 (*
- * CBFS Connect 2024 Delphi Edition - Sample Project
+ * CBFS Connect 2022 Delphi Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -1315,7 +1315,7 @@ begin
   Result := Allow;
 end;
 
-function TFormSecureMemDrive.ConvertRelativePathToAbsolute(const path: string; acceptMountingPoint: Boolean = False): string;
+function TFormSecureMemDrive.ConvertRelativePathToAbsolute(const path: string; acceptMountingPoint: Boolean): string;
 var
   res, remainedPath, homeDir: string;
   semicolonCount: Integer;
@@ -1335,7 +1335,7 @@ begin
         Exit(TPath.Combine(homeDir, Copy(path, 2, MaxInt)));
     end;
 
-    semicolonCount := Length(TPath.SplitPath(path)) - 1;
+    semicolonCount := Length(path.Split([';'])) - 1;
     if semicolonCount = 2 then
     begin
       if not acceptMountingPoint then
