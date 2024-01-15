@@ -1,5 +1,5 @@
 /*
- * CBFS Connect 2022 Java Edition - Sample Project
+ * CBFS Connect 2024 Java Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -25,7 +25,7 @@ import cbfsconnect.*;
 
 import javax.swing.*;
 
-public class fusememdrive implements FuseEventListener {
+public class fusememdrive implements FUSEEventListener {
 
     private static final String PRODUCT_GUID = "{713CC6CE-B3E2-4fd9-838D-E28F558F6866}";
     private static final int SECTOR_SIZE = 512;
@@ -82,7 +82,7 @@ public class fusememdrive implements FuseEventListener {
 
     private static final Pattern DRIVE_LETTER_PATTERN = Pattern.compile("^[A-Za-z]:$");
 
-    private static Fuse fuse;
+    private static FUSE fuse;
     private String cabFileLocation;
     private boolean initialized;
     private String mountingPoint;
@@ -140,7 +140,7 @@ public class fusememdrive implements FuseEventListener {
         try {
             if (!initialized) {
                 fuse.initialize(PRODUCT_GUID);
-                fuse.addFuseEventListener(this);
+                fuse.addFUSEEventListener(this);
                 initialized = true;
             }
             fuse.mount(mountingPoint);
@@ -226,7 +226,8 @@ public class fusememdrive implements FuseEventListener {
 
             cabFileLocation = ConvertRelativePathToAbsolute(args[1]);
             if (isNullOrEmpty(cabFileLocation)) {
-                return;
+                System.out.println("Error: Invalid Cab File Path");
+                System.exit(1);
             }
 
             if (doInstall) {
@@ -244,6 +245,10 @@ public class fusememdrive implements FuseEventListener {
             mountingPoint += ":";
         }
         mountingPoint = ConvertRelativePathToAbsolute(mountingPoint, true);
+        if (isNullOrEmpty(mountingPoint)) {
+            System.out.println("Error: Invalid Mounting Point Path");
+            System.exit(1);
+        }
         mount();
 
         waitForQuit();
@@ -287,7 +292,7 @@ public class fusememdrive implements FuseEventListener {
             if (isNetworkMountingPoint) {
                 if (!acceptMountingPoint) {
                     System.out.println("The path '" + path + "' format cannot be equal to the Network Mounting Point");
-                    return path;
+                    return "";
                 }
                 int pos = path.indexOf(';');
                 if (pos != path.length() - 1) {
@@ -302,6 +307,7 @@ public class fusememdrive implements FuseEventListener {
             if (isDriveLetter(res)) {
                 if (!acceptMountingPoint) {
                     System.out.println("The path '" + res + "' format cannot be equal to the Drive Letter");
+                    return "";
                 }
                 return path;
             }
@@ -366,7 +372,7 @@ public class fusememdrive implements FuseEventListener {
     public static void main(String[] args) {
         try
         {
-            fuse = new Fuse();
+            fuse = new FUSE();
         }
         catch (UnsatisfiedLinkError ex)
         {
@@ -387,9 +393,9 @@ public class fusememdrive implements FuseEventListener {
     }
 
     // -----------------------------------
-    // Implementation of FuseEventListener
+    // Implementation of FUSEEventListener
 
-    public void access(FuseAccessEvent e) {
+    public void access(FUSEAccessEvent e) {
         if (isNullOrEmpty(e.path)) {
             e.result = -ENOENT;
             return;
@@ -402,7 +408,7 @@ public class fusememdrive implements FuseEventListener {
         }
     }
 
-    public void chmod(FuseChmodEvent e) {
+    public void chmod(FUSEChmodEvent e) {
         if (isNullOrEmpty(e.path)) {
             e.result = -ENOENT;
             return;
@@ -417,7 +423,7 @@ public class fusememdrive implements FuseEventListener {
         file.setMode(e.mode);
     }
 
-    public void chown(FuseChownEvent e) {
+    public void chown(FUSEChownEvent e) {
         if (isNullOrEmpty(e.path)) {
             e.result = -ENOENT;
             return;
@@ -433,9 +439,9 @@ public class fusememdrive implements FuseEventListener {
         file.setUid(e.uid);
     }
 
-    public void copyFileRange(FuseCopyFileRangeEvent e) {}
+    public void copyFileRange(FUSECopyFileRangeEvent e) {}
 
-    public void create(FuseCreateEvent e) {
+    public void create(FUSECreateEvent e) {
         String[] names = splitName(e.path);
         if (names == null) {
             e.result = -ENOENT;
@@ -467,13 +473,13 @@ public class fusememdrive implements FuseEventListener {
         }
     }
 
-    public void destroy(FuseDestroyEvent e) {}
+    public void destroy(FUSEDestroyEvent e) {}
 
-    public void error(FuseErrorEvent e) {
+    public void error(FUSEErrorEvent e) {
         System.out.println(String.format("Error: %d, Description: %s", e.errorCode, e.description));
     }
 
-    public void FAllocate(FuseFAllocateEvent e)
+    public void FAllocate(FUSEFAllocateEvent e)
     {
         VirtualFile file = (VirtualFile) globals.get(e.fileContext);
         if (file == null)
@@ -508,11 +514,11 @@ public class fusememdrive implements FuseEventListener {
         }
     }
 
-    public void flush(FuseFlushEvent e) {}
+    public void flush(FUSEFlushEvent e) {}
 
-    public void FSync(FuseFSyncEvent e) {}
+    public void FSync(FUSEFSyncEvent e) {}
 
-    public void getAttr(FuseGetAttrEvent e) {
+    public void getAttr(FUSEGetAttrEvent e) {
         if (isNullOrEmpty(e.path)) {
             e.result = -ENOENT;
             return;
@@ -536,11 +542,11 @@ public class fusememdrive implements FuseEventListener {
         }
     }
 
-    public void init(FuseInitEvent e) {}
+    public void init(FUSEInitEvent e) {}
 
-    public void lock(FuseLockEvent e) {}
+    public void lock(FUSELockEvent e) {}
 
-    public void mkDir(FuseMkDirEvent e) {
+    public void mkDir(FUSEMkDirEvent e) {
         String[] names = splitName(e.path);
         if (names == null) {
             e.result = -ENOENT;
@@ -571,7 +577,7 @@ public class fusememdrive implements FuseEventListener {
         }
     }
 
-    public void open(FuseOpenEvent e) {
+    public void open(FUSEOpenEvent e) {
         if (e.fileContext != 0) {
             VirtualFile file = (VirtualFile) globals.acquire(e.fileContext);
             if (file == null) {
@@ -589,7 +595,7 @@ public class fusememdrive implements FuseEventListener {
         e.fileContext = globals.alloc(file);
     }
 
-    public void read(FuseReadEvent e) {
+    public void read(FUSEReadEvent e) {
         VirtualFile file = (VirtualFile) globals.get(e.fileContext);
         if (file == null) {
             e.result = -EBADF;
@@ -602,7 +608,7 @@ public class fusememdrive implements FuseEventListener {
         e.result = file.read(e.offset, e.size, e.buffer);
     }
 
-    public void readDir(FuseReadDirEvent e) {
+    public void readDir(FUSEReadDirEvent e) {
         VirtualFile dir = Files.get(e.path);
         if (dir != null) {
             List<String> content = dir.enumerate();
@@ -621,14 +627,14 @@ public class fusememdrive implements FuseEventListener {
         }
     }
 
-    public void release(FuseReleaseEvent e) {
+    public void release(FUSEReleaseEvent e) {
         if (e.fileContext != 0) {
             globals.release(e.fileContext);
             e.fileContext = 0;
         }
     }
 
-    public void rename(FuseRenameEvent e) {
+    public void rename(FUSERenameEvent e) {
         VirtualFile file = Files.get(e.oldPath);
         if (file == null) {
             e.result = -ENOENT;
@@ -673,7 +679,7 @@ public class fusememdrive implements FuseEventListener {
         newParent.add(file.getName());
     }
 
-    public void rmDir(FuseRmDirEvent e) {
+    public void rmDir(FUSERmDirEvent e) {
         VirtualFile file = Files.get(e.path);
         if ((file == null) || (!file.isDirectory())) {
             e.result = -ENOENT;
@@ -682,7 +688,7 @@ public class fusememdrive implements FuseEventListener {
         Files.delete(e.path);
     }
 
-    public void statFS(FuseStatFSEvent e) {
+    public void statFS(FUSEStatFSEvent e) {
         e.blockSize = SECTOR_SIZE;
         e.freeBlocks = (DRIVE_SIZE - Files.calcSize() + SECTOR_SIZE / 2) / SECTOR_SIZE;
         e.freeBlocksAvail = e.freeBlocks;
@@ -690,7 +696,7 @@ public class fusememdrive implements FuseEventListener {
         e.maxFilenameLength = 255;
     }
 
-    public void truncate(FuseTruncateEvent e) {
+    public void truncate(FUSETruncateEvent e) {
         VirtualFile file = (VirtualFile) globals.get(e.fileContext);
         if (file == null) {
             file = Files.get(e.path);
@@ -702,7 +708,7 @@ public class fusememdrive implements FuseEventListener {
         file.setSize((int)(e.size));
     }
 
-    public void unlink(FuseUnlinkEvent e) {
+    public void unlink(FUSEUnlinkEvent e) {
         VirtualFile file = Files.get(e.path);
         if (file == null) {
             e.result = -ENOENT;
@@ -715,7 +721,7 @@ public class fusememdrive implements FuseEventListener {
         Files.delete(e.path);
     }
 
-    public void utimens(FuseUtimensEvent e) {
+    public void utimens(FUSEUtimensEvent e) {
         VirtualFile file = Files.get(e.path);
         if (file == null) {
             e.result = -ENOENT;
@@ -727,7 +733,7 @@ public class fusememdrive implements FuseEventListener {
             file.setLastWriteTime(e.MTime);
     }
 
-    public void write(FuseWriteEvent e) {
+    public void write(FUSEWriteEvent e) {
         VirtualFile file = (VirtualFile) globals.get(e.fileContext);
         if (file == null) {
             e.result = -EBADF;
@@ -741,7 +747,7 @@ public class fusememdrive implements FuseEventListener {
         e.result = file.write(e.buffer, e.offset, e.size);
     }
 
-    // End of FuseEventListener implementation
+    // End of FUSEEventListener implementation
     // --------------------------------------
 
     private enum DriverStatus {

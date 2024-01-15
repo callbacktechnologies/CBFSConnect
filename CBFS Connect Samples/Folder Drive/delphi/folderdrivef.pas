@@ -1,5 +1,5 @@
 (*
- * CBFS Connect 2022 Delphi Edition - Sample Project
+ * CBFS Connect 2024 Delphi Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -2724,7 +2724,7 @@ begin
       begin
         MessageDlg('The network folder "' + path + '" format cannot be equal to the Network Mounting Point',
           mtError, [mbOk], 0);
-        Exit(path);
+        Exit('');
       end;
 
       var pos := Pos(';', path);
@@ -2740,8 +2740,11 @@ begin
     if IsDriveLetter(res) then
     begin
       if not acceptMountingPoint then
+      begin
         MessageDlg('The path "' + res + '" format cannot be equal to the Drive Letter',
           mtError, [mbOk], 0);
+        Exit('');
+      end;
       Exit(path);
     end;
 
@@ -3070,13 +3073,22 @@ begin
 end;
 
 procedure TFormFolderDrive.btnAddPointClick(Sender: TObject);
+var
+  absolutePath: string;
 begin
+  absolutePath := ConvertRelativePathToAbsolute(edtMountingPoint.Text, True);
+  if (absolutePath = '') then
+  begin
+    MessageDlg('Error: Invalid Mounting Point Path.',
+      mtError, [mbOk], 0);
+    Exit;
+  end;
   Screen.Cursor := crHourGlass;
   edtMountingPoint.Enabled := false;
-  FCbFs.AddMountingPoint(ConvertRelativePathToAbsolute(edtMountingPoint.Text, True), STGMP_MOUNT_MANAGER, 0);
+  FCbFs.AddMountingPoint(absolutePath, STGMP_MOUNT_MANAGER, 0);
   btnAddPoint.Enabled := false;
   btnDeletePoint.Enabled := true;
-  ShellExecute(Application.Handle, 'open', 'explorer.exe', PChar(ConvertRelativePathToAbsolute(edtMountingPoint.Text, True)), nil, SW_NORMAL);
+  ShellExecute(Application.Handle, 'open', 'explorer.exe', PChar(absolutePath), nil, SW_NORMAL);
   Screen.Cursor := crDefault;
 end;
 

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="folderdrive.cs" />
+    <Reference Include="callback.CBFSConnect">
+      <HintPath>..\..\lib\net6.0\callback.CBFSConnect.dll</HintPath>
+    </Reference>
+  </ItemGroup></Project>

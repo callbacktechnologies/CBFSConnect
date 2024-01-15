@@ -1,5 +1,5 @@
 (*
- * CBFS Connect 2022 Delphi Edition - Sample Project
+ * CBFS Connect 2024 Delphi Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -1171,6 +1171,12 @@ var
 begin
   Screen.Cursor := crHourGlass;
   mp := ConvertRelativePathToAbsolute(edtMountingPoint.Text, True);
+  if (mp = '') then
+  begin
+    MessageDlg('Error: Invalid Mounting Point Path.',
+      mtError, [mbOk], 0);
+    Exit;
+  end;
   FCbFs.AddMountingPoint(mp, STGMP_MOUNT_MANAGER, 0);
   if (Length(mp) <> 2) or (mp[2] <> ':') then
     s := '\\.\' + mp
@@ -1342,7 +1348,7 @@ begin
       begin
         MessageDlg('The network folder "' + path + '" format cannot be equal to the Network Mounting Point',
           mtError, [mbOk], 0);
-        Exit(path);
+        Exit('');
       end;
 
       var pos := Pos(';', path);
@@ -1358,8 +1364,11 @@ begin
     if IsDriveLetter(res) then
     begin
       if not acceptMountingPoint then
+      begin
         MessageDlg('The path "' + res + '" format cannot be equal to the Drive Letter',
           mtError, [mbOk], 0);
+        Exit('');
+      end;
       Exit(path);
     end;
 

@@ -1,5 +1,5 @@
 /*
- * CBFS Connect 2022 C++ Edition - Sample Project
+ * CBFS Connect 2024 C++ Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -21,6 +21,7 @@
 #include <iostream>
 #include <filesystem>
 #include <string>
+#include <tchar.h>
 
 #ifdef WIN32
 #include <Shlwapi.h>
@@ -619,7 +620,7 @@ cbt_string ConvertRelativePathToAbsolute(const cbt_string& path, bool acceptMoun
         if (isNetworkMountingPoint) {
             if (!acceptMountingPoint) {
                 sout << L"The path '" << path << L"' format cannot be equal to the Network Mounting Point" << std::endl;
-                return path;
+                return _T("");
             }
             size_t pos = path.find(L";");
             if (pos != cbt_string::npos) {
@@ -635,7 +636,8 @@ cbt_string ConvertRelativePathToAbsolute(const cbt_string& path, bool acceptMoun
 #ifdef _WIN32
             if (IsDriveLetter(res)) {
                 if (!acceptMountingPoint) {
-                    sout << L"The path '" << res << L"' format cannot be equal to the Drive Letter" << std::endl;
+                    sout << L"The path '" << res << L"' cannot be equal to the drive letter" << std::endl;
+                    return _T("");
                 }
                 return path;
             }
@@ -643,14 +645,14 @@ cbt_string ConvertRelativePathToAbsolute(const cbt_string& path, bool acceptMoun
             const char pathSeparator = '\\';
             if (_wgetcwd(currentDir, _MAX_PATH) == nullptr) {
                 sout << "Error getting current directory." << std::endl;
-                return L"";
+                return _T("");
             }
 #else
             char currentDir[PATH_MAX];
             const char pathSeparator = '/';
             if (getcwd(currentDir, sizeof(currentDir)) == nullptr) {
                 sout << "Error getting current directory." << std::endl;
-                return "";
+                return _T("");
             }
 #endif
             cbt_string currentDirStr(currentDir);
@@ -665,6 +667,7 @@ cbt_string ConvertRelativePathToAbsolute(const cbt_string& path, bool acceptMoun
     }
     else {
         sout << L"Error: The input path is empty." << std::endl;
+        return _T("");
     }
     return path;
 }
@@ -705,6 +708,10 @@ int main(int argc, char* argv[]) {
                         if (argi < argc) {
                             printf("Installing drivers from '%s'\n", argv[argi]);
                             cbt_string driver_path_wstr = ConvertRelativePathToAbsolute(a2w(argv[argi]));
+                            if (driver_path_wstr.empty()) {
+                                printf("Error: Invalid Driver Path\n");
+                                exit(1);
+                            }
                             LPCWSTR driver_path = wcsdup(driver_path_wstr.c_str());
                             drv_reboot = cbfs_fuse.Install(driver_path, g_Guid, NULL,
                                 cbcConstants::INSTALL_REMOVE_OLD_VERSIONS);
@@ -747,10 +754,14 @@ int main(int argc, char* argv[]) {
                     g_DiskContext = new VirtualFile(TEXT("/"), S_IFDIR);
 
                 cbt_string mount_point_wstr = ConvertRelativePathToAbsolute(a2w(argv[argi]), true);
+                if (mount_point_wstr.empty()) {
+                    printf("Error: Invalid Mounting Point Path\n");
+                    exit(1);
+                }
 #ifdef UNICODE
                 mount_point = wcsdup(mount_point_wstr.c_str());
 #else
-				mount_point = strdup(mount_point_wstr.c_str());
+                mount_point = strdup(mount_point_wstr.c_str());
 #endif
 
                 retVal = cbfs_fuse.Mount(mount_point);
