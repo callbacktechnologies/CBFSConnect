@@ -1,5 +1,5 @@
 /*
- * CBFS Connect 2024 Java Edition - Sample Project
+ * CBFS Connect 2022 Java Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
 
 import cbfsconnect.*;
 
-public class encrypteddrive extends JFrame implements CBFSEventListener {
+public class encrypteddrive extends JFrame implements CbfsEventListener {
     private static final String PRODUCT_GUID = "{713CC6CE-B3E2-4fd9-838D-E28F558F6866}";
     private static final int SECTOR_SIZE = 512;
     private static final int BUFFER_SIZE = 64 * 1024;
@@ -58,7 +58,7 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
 
     private static final Pattern DRIVE_LETTER_PATTERN = Pattern.compile("^[A-Za-z]:$");
 
-    private static CBFS cbfs;
+    private static Cbfs cbfs;
     private String cabFileLocation;
     private String rootDir;
     private byte[] keyMaterial;
@@ -203,7 +203,7 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
                 cbfs.initialize(PRODUCT_GUID);
                 cbfs.setSerializeAccess(true);
                 cbfs.setSerializeEvents(1);
-                cbfs.addCBFSEventListener(this);
+                cbfs.addCbfsEventListener(this);
                 initialized = true;
             }
             cbfs.createStorage();
@@ -318,7 +318,7 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
                 return;
             }
 
-            cbfs.addMountingPoint(mountingPoint, Constants.STGMP_SIMPLE, 0);
+            cbfs.addMountingPoint(mountingPoint, Constants.STGMP_MOUNT_MANAGER, 0);
             updateMountingPoints();
         }
         catch (CBFSConnectException err) {
@@ -635,7 +635,7 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
                 if (!acceptMountingPoint) {
                     JOptionPane.showMessageDialog(this,
                             "The path '" + path + "' format cannot be equal to the Network Mounting Point", getTitle(), JOptionPane.ERROR_MESSAGE);
-                    return "";
+                    return path;
                 }
                 int pos = path.indexOf(';');
                 if (pos != path.length() - 1) {
@@ -651,7 +651,6 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
                 if (!acceptMountingPoint) {
                     JOptionPane.showMessageDialog(this,
                             "The path '" + res + "' format cannot be equal to the Drive Letter", getTitle(), JOptionPane.ERROR_MESSAGE);
-                    return "";
                 }
                 return path;
             }
@@ -709,7 +708,7 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
     public static void main(String[] args) throws CBFSConnectException {
         try
         {
-            cbfs = new CBFS();
+            cbfs = new Cbfs();
         }
         catch (UnsatisfiedLinkError ex)
         {
@@ -723,24 +722,24 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
     }
 
     // -----------------------------------
-    // Implementation of CBFSEventListener
+    // Implementation of CbfsEventListener
 
-    public void canFileBeDeleted(CBFSCanFileBeDeletedEvent e) {
+    public void canFileBeDeleted(CbfsCanFileBeDeletedEvent e) {
         e.canBeDeleted = true;
     }
 
-    public void cleanupFile(CBFSCleanupFileEvent e) {
+    public void cleanupFile(CbfsCleanupFileEvent e) {
         // not needed in this demo
     }
 
-    public void closeDirectoryEnumeration(CBFSCloseDirectoryEnumerationEvent e) {
+    public void closeDirectoryEnumeration(CbfsCloseDirectoryEnumerationEvent e) {
         if (e.enumerationContext != 0) {
             globals.free(e.enumerationContext);
             e.enumerationContext = 0;
         }
     }
 
-    public void closeFile(CBFSCloseFileEvent e) {
+    public void closeFile(CbfsCloseFileEvent e) {
         // because FireAllOpenCloseEvents property is false by default, the event
         // handler will be called only once when all the handles for the file
         // are closed; so it's not needed to deal with file opening counter in this demo
@@ -754,19 +753,19 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
         }
     }
 
-    public void closeHardLinksEnumeration(CBFSCloseHardLinksEnumerationEvent e) {
+    public void closeHardLinksEnumeration(CbfsCloseHardLinksEnumerationEvent e) {
         // out of the demo's scope
     }
 
-    public void closeNamedStreamsEnumeration(CBFSCloseNamedStreamsEnumerationEvent e) {
+    public void closeNamedStreamsEnumeration(CbfsCloseNamedStreamsEnumerationEvent e) {
         // out of the demo's scope
     }
 
-    public void closeQuotasEnumeration(CBFSCloseQuotasEnumerationEvent e) {
+    public void closeQuotasEnumeration(CbfsCloseQuotasEnumerationEvent e) {
         // out of the demo's scope
     }
 
-    public void createFile(CBFSCreateFileEvent e) {
+    public void createFile(CbfsCreateFileEvent e) {
         String name = rootDir + e.fileName;
         File file = new File(name);
         FileContext context = new FileContext(e.attributes);
@@ -792,11 +791,11 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
         e.fileContext = globals.alloc(context);
     }
 
-    public void createHardLink(CBFSCreateHardLinkEvent e) {
+    public void createHardLink(CbfsCreateHardLinkEvent e) {
         // out of the demo's scope
     }
 
-    public void deleteFile(CBFSDeleteFileEvent e) {
+    public void deleteFile(CbfsDeleteFileEvent e) {
         if (e.fileContext != 0) {
             FileContext context = (FileContext) globals.free(e.fileContext);
             if (context != null)
@@ -810,15 +809,15 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
             e.resultCode = ERROR_WRITE_FAULT;
     }
 
-    public void deleteReparsePoint(CBFSDeleteReparsePointEvent e) {
+    public void deleteReparsePoint(CbfsDeleteReparsePointEvent e) {
         // out of the demo's scope
     }
 
-    public void ejected(CBFSEjectedEvent e) {
+    public void ejected(CbfsEjectedEvent e) {
         // not needed in this demo
     }
 
-    public void enumerateDirectory(CBFSEnumerateDirectoryEvent e) {
+    public void enumerateDirectory(CbfsEnumerateDirectoryEvent e) {
         EnumContext context;
 
         if (e.restart && e.enumerationContext != 0) {
@@ -859,31 +858,31 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
         }
     }
 
-    public void enumerateHardLinks(CBFSEnumerateHardLinksEvent e) {
+    public void enumerateHardLinks(CbfsEnumerateHardLinksEvent e) {
         // out of the demo's scope
     }
 
-    public void enumerateNamedStreams(CBFSEnumerateNamedStreamsEvent e) {
+    public void enumerateNamedStreams(CbfsEnumerateNamedStreamsEvent e) {
         // out of the demo's scope
     }
 
-    public void error(CBFSErrorEvent e) {
+    public void error(CbfsErrorEvent e) {
         System.err.println(String.format("ERROR: [%d] %s", e.errorCode, e.description));
     }
 
-    public void flushFile(CBFSFlushFileEvent e) {
+    public void flushFile(CbfsFlushFileEvent e) {
         // not needed in this demo
     }
 
-    public void fsctl(CBFSFsctlEvent e) {
+    public void fsctl(CbfsFsctlEvent e) {
         // not needed in this demo
     }
 
-    public void getDefaultQuotaInfo(CBFSGetDefaultQuotaInfoEvent e) {
+    public void getDefaultQuotaInfo(CbfsGetDefaultQuotaInfoEvent e) {
         // out of the demo's scope
     }
 
-    public void getFileInfo(CBFSGetFileInfoEvent e) {
+    public void getFileInfo(CbfsGetFileInfoEvent e) {
         String name = rootDir + e.fileName;
         File file = new File(name);
         e.fileExists = file.exists();
@@ -898,64 +897,64 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
         e.lastWriteTime = new Date(file.lastModified());
     }
 
-    public void getFileNameByFileId(CBFSGetFileNameByFileIdEvent e) {
+    public void getFileNameByFileId(CbfsGetFileNameByFileIdEvent e) {
         // out of the demo's scope
     }
 
-    public void getFileSecurity(CBFSGetFileSecurityEvent e) {
+    public void getFileSecurity(CbfsGetFileSecurityEvent e) {
         // out of the demo's scope
     }
 
-    public void getReparsePoint(CBFSGetReparsePointEvent e) {
+    public void getReparsePoint(CbfsGetReparsePointEvent e) {
         // out of the demo's scope
     }
 
-    public void getVolumeId(CBFSGetVolumeIdEvent e) {
+    public void getVolumeId(CbfsGetVolumeIdEvent e) {
         e.volumeId = 0x12345678;
     }
 
-    public void getVolumeLabel(CBFSGetVolumeLabelEvent e) {
+    public void getVolumeLabel(CbfsGetVolumeLabelEvent e) {
         e.buffer = "Encrypted Drive";
     }
 
-    public void getVolumeObjectId(CBFSGetVolumeObjectIdEvent e) {
+    public void getVolumeObjectId(CbfsGetVolumeObjectIdEvent e) {
         // out of the demo's scope
     }
 
-    public void getVolumeSize(CBFSGetVolumeSizeEvent e) {
+    public void getVolumeSize(CbfsGetVolumeSizeEvent e) {
         File file = new File(rootDir);
         e.totalSectors = file.getTotalSpace() / SECTOR_SIZE;
         e.availableSectors = file.getFreeSpace() / SECTOR_SIZE;
     }
 
-    public void ioctl(CBFSIoctlEvent e) {
+    public void ioctl(CbfsIoctlEvent e) {
         // not needed in this demo
     }
 
-    public void isDirectoryEmpty(CBFSIsDirectoryEmptyEvent e) {
+    public void isDirectoryEmpty(CbfsIsDirectoryEmptyEvent e) {
         String name = rootDir + e.directoryName;
         File dir = new File(name);
         String[] files = dir.list();
         e.isEmpty = (files == null) || (files.length == 0);
     }
 
-    public void lockFile(CBFSLockFileEvent e) {
+    public void lockFile(CbfsLockFileEvent e) {
         // not needed in this demo
     }
 
-    public void mount(CBFSMountEvent e) {
+    public void mount(CbfsMountEvent e) {
         // not needed in this demo
     }
 
-    public void offloadReadFile(CBFSOffloadReadFileEvent e) {
+    public void offloadReadFile(CbfsOffloadReadFileEvent e) {
         // not needed in this demo
     }
 
-    public void offloadWriteFile(CBFSOffloadWriteFileEvent e) {
+    public void offloadWriteFile(CbfsOffloadWriteFileEvent e) {
         // not needed in this demo
     }
 
-    public void openFile(CBFSOpenFileEvent e) {
+    public void openFile(CbfsOpenFileEvent e) {
         FileContext context = (FileContext)globals.get(e.fileContext);
         if (context != null) {
             if (context.readOnly && isWritingRequested(e.desiredAccess)) {
@@ -992,26 +991,11 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
         e.fileContext = globals.alloc(context);
     }
 
-    public void queryAllocatedRanges(CBFSQueryAllocatedRangesEvent cbfsQueryAllocatedRangesEvent)
-    {
+    public void queryQuotas(CbfsQueryQuotasEvent e) {
         // out of the demo's scope
     }
 
-    public void queryCompressionInfo(CBFSQueryCompressionInfoEvent cbfsQueryCompressionInfoEvent)
-    {
-        // out of the demo's scope
-    }
-
-    public void queryEa(CBFSQueryEaEvent cbfsQueryEaEvent)
-    {
-        // out of the demo's scope
-    }
-
-    public void queryQuotas(CBFSQueryQuotasEvent e) {
-        // out of the demo's scope
-    }
-
-    public void readFile(CBFSReadFileEvent e) {
+    public void readFile(CbfsReadFileEvent e) {
         FileContext context = (FileContext)globals.get(e.fileContext);
         if (context == null) {
             e.resultCode = ERROR_INVALID_HANDLE;
@@ -1051,7 +1035,7 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
         }
     }
 
-    public void renameOrMoveFile(CBFSRenameOrMoveFileEvent e) {
+    public void renameOrMoveFile(CbfsRenameOrMoveFileEvent e) {
         String oldName = rootDir + e.fileName;
         String newName = rootDir + e.newFileName;
 
@@ -1071,20 +1055,15 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
             e.resultCode = ERROR_WRITE_FAULT;
     }
 
-    public void setAllocationSize(CBFSSetAllocationSizeEvent e) {
+    public void setAllocationSize(CbfsSetAllocationSizeEvent e) {
         // not needed in this demo
     }
 
-    public void setDefaultQuotaInfo(CBFSSetDefaultQuotaInfoEvent e) {
+    public void setDefaultQuotaInfo(CbfsSetDefaultQuotaInfoEvent e) {
         // out of the demo's scope
     }
 
-    public void setEa(CBFSSetEaEvent cbfsSetEaEvent)
-    {
-        // out of the demo's scope
-    }
-
-    public void setFileSize(CBFSSetFileSizeEvent e) {
+    public void setFileSize(CbfsSetFileSizeEvent e) {
         if (e.fileContext == 0) {
             e.resultCode = ERROR_INVALID_HANDLE;
             return;
@@ -1104,7 +1083,7 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
         }
     }
 
-    public void setFileAttributes(CBFSSetFileAttributesEvent e) {
+    public void setFileAttributes(CbfsSetFileAttributesEvent e) {
         // unfortunately, before introducing java.nio in Java 7, JRE's means
         // to handle file attributes were very very limited and allowed to set
         // only "last modified time" for a file
@@ -1116,47 +1095,47 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
         }
     }
 
-    public void setFileSecurity(CBFSSetFileSecurityEvent e) {
+    public void setFileSecurity(CbfsSetFileSecurityEvent e) {
         // out of the demo's scope
     }
 
-    public void setQuotas(CBFSSetQuotasEvent e) {
+    public void setQuotas(CbfsSetQuotasEvent e) {
         // out of the demo's scope
     }
 
-    public void setReparsePoint(CBFSSetReparsePointEvent e) {
+    public void setReparsePoint(CbfsSetReparsePointEvent e) {
         // out of the demo's scope
     }
 
-    public void setValidDataLength(CBFSSetValidDataLengthEvent e) {
+    public void setValidDataLength(CbfsSetValidDataLengthEvent e) {
         // not needed in this demo
     }
 
-    public void setVolumeLabel(CBFSSetVolumeLabelEvent e) {
+    public void setVolumeLabel(CbfsSetVolumeLabelEvent e) {
         // not needed in this demo
     }
 
-    public void setVolumeObjectId(CBFSSetVolumeObjectIdEvent e) {
+    public void setVolumeObjectId(CbfsSetVolumeObjectIdEvent e) {
         // out of the demo's scope
     }
 
-    public void unlockFile(CBFSUnlockFileEvent e) {
+    public void unlockFile(CbfsUnlockFileEvent e) {
         // not needed in this demo
     }
 
-    public void unmount(CBFSUnmountEvent e) {
+    public void unmount(CbfsUnmountEvent e) {
         // not needed in this demo
     }
 
-    public void workerThreadCreation(CBFSWorkerThreadCreationEvent e) {
+    public void workerThreadCreation(CbfsWorkerThreadCreationEvent e) {
         // not needed in this demo
     }
 
-    public void workerThreadTermination(CBFSWorkerThreadTerminationEvent e) {
+    public void workerThreadTermination(CbfsWorkerThreadTerminationEvent e) {
         // not needed in this demo
     }
 
-    public void writeFile(CBFSWriteFileEvent e) {
+    public void writeFile(CbfsWriteFileEvent e) {
         FileContext context = (FileContext)globals.get(e.fileContext);
         if (context == null) {
             e.resultCode = ERROR_INVALID_HANDLE;
@@ -1196,12 +1175,7 @@ public class encrypteddrive extends JFrame implements CBFSEventListener {
         }
     }
 
-    public void zeroizeFileRange(CBFSZeroizeFileRangeEvent cbfsZeroizeFileRangeEvent)
-    {
-        // out of the demo's scope
-    }
-
-    // End of CBFSEventListener implementation
+    // End of CbfsEventListener implementation
     // --------------------------------------
 
     private enum DriverStatus {

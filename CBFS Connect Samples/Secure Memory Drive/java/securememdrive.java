@@ -24,12 +24,44 @@ import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.filechooser.FileFilter;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.regex.Pattern;
 
+//
+// This project relies on JNA
+//
+import com.sun.jna.Memory;
+import com.sun.jna.Native;
+import com.sun.jna.Pointer;
+import com.sun.jna.platform.win32.Advapi32;
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.Kernel32Util;
+import com.sun.jna.platform.win32.WinDef.*;
+import static com.sun.jna.platform.win32.WinNT.*;
+import static com.sun.jna.platform.win32.WinNT.SECURITY_IMPERSONATION_LEVEL.SecurityImpersonation;
+import static com.sun.jna.platform.win32.WinNT.TOKEN_INFORMATION_CLASS.TokenUser;
+import com.sun.jna.ptr.IntByReference;
+import com.sun.jna.ptr.PointerByReference;
+import com.sun.jna.win32.StdCallLibrary;
+import com.sun.jna.win32.W32APIOptions;
+
 import cbfsconnect.*;
 
-public class memdrive extends JFrame implements CbfsEventListener {
+
+//
+// ------------------------ securememdrive ---------------------------------
+//
+// Key method:
+//  securememdrive::fileSecureCheck,
+//     This method checks the permissions of a client token through the security descriptor of file.
+//
+//  VirtualFile::allocateDefaultSecurityDescriptor,
+//     This method assigns default security descriptors to files and directories.
+//
+// ------------------------------------------------------------------------
+//
+public class securememdrive extends JFrame implements CbfsEventListener {
 
     private static final String PRODUCT_GUID = "{713CC6CE-B3E2-4fd9-838D-E28F558F6866}";
     private static final int SECTOR_SIZE = 512;
@@ -46,6 +78,7 @@ public class memdrive extends JFrame implements CbfsEventListener {
     private static final int ERROR_FILE_EXISTS = 80;
     private static final int ERROR_INVALID_NAME = 123;
     private static final int ERROR_PRIVILEGE_NOT_HELD = 1314;
+    private static final int ERROR_INTERNAL_ERROR = 0x54f;
 
     private static final Pattern DRIVE_LETTER_PATTERN = Pattern.compile("^[A-Za-z]:$");
 
@@ -84,8 +117,9 @@ public class memdrive extends JFrame implements CbfsEventListener {
         utc.clear(Calendar.MILLISECOND);
         EMPTY_DATE = utc.getTimeInMillis();
     }
-    private memdrive() {
-        super("Memory Drive");
+
+    private securememdrive() {
+        super("Secure Memory Drive");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(null);
         setLocationByPlatform(true);
@@ -99,6 +133,33 @@ public class memdrive extends JFrame implements CbfsEventListener {
         updateDriverStatus();
         updateControls();
         repaint();
+    }
+
+    private boolean fileSecureCheck(Pointer securityDescriptor, HANDLE impersonatedToken, DWORD accessRights) {
+        boolean allow = false;
+
+        DWORDByReference accessRightsRef = new DWORDByReference(accessRights);
+        DWORDByReference grantedAccess = new DWORDByReference();
+        PRIVILEGE_SET privileges = new PRIVILEGE_SET(1);
+        DWORDByReference privilegesLength = new DWORDByReference(new DWORD(privileges.size()));
+        GENERIC_MAPPING mapping = new GENERIC_MAPPING();
+        BOOLByReference result = new BOOLByReference();
+
+        mapping.genericRead    = new DWORD(FILE_GENERIC_READ);
+        mapping.genericWrite   = new DWORD(FILE_GENERIC_WRITE);
+        mapping.genericExecute = new DWORD(FILE_GENERIC_EXECUTE);
+        mapping.genericAll     = new DWORD(FILE_ALL_ACCESS);
+
+        Advapi32.INSTANCE.MapGenericMask(accessRightsRef, mapping);
+        if (!Advapi32.INSTANCE.AccessCheck(securityDescriptor, impersonatedToken, accessRightsRef.getValue(),
+                mapping, privileges, privilegesLength, grantedAccess, result)) {
+
+            int dwError = Kernel32.INSTANCE.GetLastError();
+        }
+        else
+            allow = result.getValue().booleanValue();
+
+        return allow;
     }
 
     private void buttonInstallClick() {
@@ -173,6 +234,14 @@ public class memdrive extends JFrame implements CbfsEventListener {
         try {
             if (!initialized) {
                 cbfs.initialize(PRODUCT_GUID);
+
+                //
+                // Enable Windows Security
+                //
+                cbfs.setFileSystemName("NTFS");
+                cbfs.setUseWindowsSecurity(true);
+                cbfs.setFireAllOpenCloseEvents(true);
+
                 cbfs.setSerializeAccess(true);
                 cbfs.setSerializeEvents(1);
                 cbfs.addCbfsEventListener(this);
@@ -270,7 +339,7 @@ public class memdrive extends JFrame implements CbfsEventListener {
         buttonUnmountMedia.setEnabled(mediaMounted);
         buttonDeleteStorage.setEnabled(storageCreated && !mediaMounted);
 
-        buttonAddMountingPoint.setEnabled(storageCreated);
+        buttonAddMountingPoint.setEnabled(mediaMounted);
         buttonRemoveMountingPoint.setEnabled(listMountingPoints.getSelectedIndex() >= 0);
     }
 
@@ -578,7 +647,7 @@ public class memdrive extends JFrame implements CbfsEventListener {
     }
 
     public static void main(String[] args) {
-        new memdrive();
+        new securememdrive();
     }
 
     // -----------------------------------
@@ -600,12 +669,11 @@ public class memdrive extends JFrame implements CbfsEventListener {
     }
 
     public void closeFile(CbfsCloseFileEvent e) {
-        // because FireAllOpenCloseEvents property is false by default, the event
-        // handler will be called only once when all the handles for the file
-        // are closed; so it's not needed to deal with file opening counter in this demo
+
         if (e.fileContext != 0) {
-            globals.free(e.fileContext);
-            e.fileContext = 0;
+            VirtualFile file = (VirtualFile) globals.get(e.fileContext);
+            if (file.derOpen() == 0)
+                globals.free(e.fileContext);
         }
     }
 
@@ -638,9 +706,38 @@ public class memdrive extends JFrame implements CbfsEventListener {
             return;
         }
 
+        //
+        // Access Check
+        //
+        try
+        {
+            boolean allow;
+
+            int AccessRights = ((e.attributes & FILE_ATTRIBUTE_DIRECTORY) != 0) ? FILE_ADD_SUBDIRECTORY : FILE_ADD_FILE;
+
+            HANDLE hToken;
+            HANDLEByReference hImpersonatedTokenRef = new HANDLEByReference();
+            hToken = new HANDLE(new Pointer(cbfs.getOriginatorToken()));
+            Advapi32.INSTANCE.DuplicateToken(hToken, SecurityImpersonation, hImpersonatedTokenRef);
+
+            allow = fileSecureCheck(parent.getSecurityDescriptor(), hImpersonatedTokenRef.getValue(), new DWORD(AccessRights));
+            Kernel32.INSTANCE.CloseHandle(hImpersonatedTokenRef.getValue());
+
+            if (!allow) {
+                e.resultCode = ERROR_ACCESS_DENIED;
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            e.resultCode = ERROR_INTERNAL_ERROR;
+            return;
+        }
+
         VirtualFile file = new VirtualFile(names[1], e.attributes & 0xFFFF);  // Attributes contains creation flags as well, which we need to strip
         parent.add(names[1]);
         Files.add(e.fileName, file);
+        file.refOpen();
         e.fileContext = globals.alloc(file);
     }
 
@@ -768,7 +865,10 @@ public class memdrive extends JFrame implements CbfsEventListener {
     }
 
     public void getFileSecurity(CbfsGetFileSecurityEvent e) {
-        // out of the demo's scope
+        VirtualFile file = (VirtualFile) globals.get(e.fileContext);
+        IntByReference descLenRef = new IntByReference(e.descriptorLength);
+        e.resultCode = file.getSecurityDescriptor(e.securityInformation, e.securityDescriptor, e.bufferLength, descLenRef);
+        e.descriptorLength = descLenRef.getValue();
     }
 
     public void getReparsePoint(CbfsGetReparsePointEvent e) {
@@ -780,7 +880,7 @@ public class memdrive extends JFrame implements CbfsEventListener {
     }
 
     public void getVolumeLabel(CbfsGetVolumeLabelEvent e) {
-        e.buffer = "Memory Drive";
+        e.buffer = "Secure Memory Drive";
     }
 
     public void getVolumeObjectId(CbfsGetVolumeObjectIdEvent e) {
@@ -821,21 +921,48 @@ public class memdrive extends JFrame implements CbfsEventListener {
     }
 
     public void openFile(CbfsOpenFileEvent e) {
+        VirtualFile file;
         if (e.fileContext != 0) {
-            VirtualFile file = (VirtualFile) globals.get(e.fileContext);
-            if (file == null) {
-                e.resultCode = ERROR_FILE_NOT_FOUND;
-                return;
-            }
-            return;
+            file = (VirtualFile) globals.get(e.fileContext);
+        }else {
+            file = Files.get(e.fileName);
         }
-
-        VirtualFile file = Files.get(e.fileName);
         if (file == null) {
             e.resultCode = ERROR_FILE_NOT_FOUND;
             return;
         }
-        e.fileContext = globals.alloc(file);
+
+        //
+        // Access Check
+        //
+        try
+        {
+            boolean allow;
+
+            int AccessRights = e.desiredAccess;
+
+            HANDLE hToken;
+            HANDLEByReference hImpersonatedTokenRef = new HANDLEByReference();
+            hToken = new HANDLE(new Pointer(cbfs.getOriginatorToken()));
+            Advapi32.INSTANCE.DuplicateToken(hToken, SecurityImpersonation, hImpersonatedTokenRef);
+
+            allow = fileSecureCheck(file.getSecurityDescriptor(), hImpersonatedTokenRef.getValue(), new DWORD(AccessRights));
+            Kernel32.INSTANCE.CloseHandle(hImpersonatedTokenRef.getValue());
+
+            if (!allow) {
+                e.resultCode = ERROR_ACCESS_DENIED;
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            e.resultCode = ERROR_INTERNAL_ERROR;
+            return;
+        }
+
+        file.refOpen();
+        if (e.fileContext == 0)
+            e.fileContext = globals.alloc(file);
     }
 
     public void queryQuotas(CbfsQueryQuotasEvent e) {
@@ -947,7 +1074,8 @@ public class memdrive extends JFrame implements CbfsEventListener {
     }
 
     public void setFileSecurity(CbfsSetFileSecurityEvent e) {
-        // out of the demo's scope
+        VirtualFile file = (VirtualFile) globals.get(e.fileContext);
+        file.setSecurityDescriptor(e.securityInformation, e.securityDescriptor, e.length);
     }
 
     public void setQuotas(CbfsSetQuotasEvent e) {
@@ -1098,6 +1226,10 @@ public class memdrive extends JFrame implements CbfsEventListener {
         private byte[] data;
         private int size;
 
+        private Pointer securityDescriptor;
+        private long securityDescriptorLength;
+        private int openCount;
+
         VirtualFile(String name, int attributes) {
             this.name = name;
             this.attributes = attributes;
@@ -1110,6 +1242,9 @@ public class memdrive extends JFrame implements CbfsEventListener {
                 entries = null;
             data = null;
             size = 0;
+            securityDescriptor = null;
+            securityDescriptorLength = 0;
+            openCount = 0;
         }
 
         boolean add(String name) {
@@ -1136,6 +1271,12 @@ public class memdrive extends JFrame implements CbfsEventListener {
                 data = null;
             }
             size = 0;
+
+            if (securityDescriptor != null) {
+                Kernel32.INSTANCE.LocalFree(securityDescriptor);
+                securityDescriptor = null;
+                securityDescriptorLength = 0;
+            }
         }
 
         List<String> enumerate(String mask) {
@@ -1189,6 +1330,398 @@ public class memdrive extends JFrame implements CbfsEventListener {
 
         int getSize() {
             return size;
+        }
+
+        Pointer getSecurityDescriptor() {
+            if (securityDescriptor == null) allocateDefaultSecurityDescriptor();
+            return securityDescriptor;
+        }
+
+        int getSecurityDescriptor(int SecurityInformation, ByteBuffer Buffer, int BufferLength, IntByReference SecurityDescriptorLength)
+        {
+            boolean Result = true;
+            int  ResultCode = ERROR_SUCCESS;
+
+            if (securityDescriptor == null) allocateDefaultSecurityDescriptor();
+
+            Pointer NewSecurityDescriptor = Kernel32.INSTANCE.LocalAlloc(LPTR, new SECURITY_DESCRIPTOR_RELATIVE().size() + 0x100);
+
+            Advapi32Ex.INSTANCE.InitializeSecurityDescriptor(NewSecurityDescriptor, SECURITY_DESCRIPTOR_REVISION);
+
+            do
+            {
+                //
+                // Owner
+                //
+                if ((SecurityInformation & OWNER_SECURITY_INFORMATION) != 0)
+                {
+                    PSIDByReference Owner = new PSIDByReference();
+                    BOOLByReference OwnerDefaulted = new BOOLByReference();
+
+                    Result = Advapi32Ex.INSTANCE.GetSecurityDescriptorOwner(securityDescriptor, Owner, OwnerDefaulted);
+                    if (Result == false)
+                        break;
+
+                    Result = Advapi32Ex.INSTANCE.SetSecurityDescriptorOwner(NewSecurityDescriptor, Owner.getValue(), OwnerDefaulted.getValue().booleanValue());
+                    if (Result == false)
+                        break;
+                }
+
+                //
+                // Group
+                //
+                if ((SecurityInformation & GROUP_SECURITY_INFORMATION) != 0)
+                {
+                    PSIDByReference Group = new PSIDByReference();
+                    BOOLByReference GroupDefaulted = new BOOLByReference();
+
+                    Result = Advapi32Ex.INSTANCE.GetSecurityDescriptorGroup(securityDescriptor, Group, GroupDefaulted);
+                    if (Result == false)
+                        break;
+
+                    Result = Advapi32Ex.INSTANCE.SetSecurityDescriptorGroup(NewSecurityDescriptor, Group.getValue(), GroupDefaulted.getValue().booleanValue());
+                    if (Result == false)
+                        break;
+                }
+
+                //
+                // Dacl
+                //
+                if ((SecurityInformation & DACL_SECURITY_INFORMATION) != 0)
+                {
+                    BOOLByReference DaclPresent = new BOOLByReference();
+                    PACLByReference Dacl = new PACLByReference();
+                    BOOLByReference DaclDefaulted = new BOOLByReference();
+
+                    Result = Advapi32Ex.INSTANCE.GetSecurityDescriptorDacl(securityDescriptor, DaclPresent, Dacl, DaclDefaulted);
+                    if (Result == false)
+                        break;
+
+                    Result = Advapi32Ex.INSTANCE.SetSecurityDescriptorDacl(NewSecurityDescriptor, DaclPresent.getValue().booleanValue(), Dacl.getValue(), DaclDefaulted.getValue().booleanValue());
+                    if (Result == false)
+                        break;
+                }
+
+                //
+                // Sacl
+                //
+                if ((SecurityInformation & SACL_SECURITY_INFORMATION) != 0)
+                {
+                    BOOLByReference SaclPresent = new BOOLByReference();
+                    PACLByReference Sacl = new PACLByReference();
+                    BOOLByReference SaclDefaulted = new BOOLByReference();
+
+                    Result = Advapi32Ex.INSTANCE.GetSecurityDescriptorSacl(securityDescriptor, SaclPresent, Sacl, SaclDefaulted);
+                    if (Result == false)
+                        break;
+
+                    Result = Advapi32Ex.INSTANCE.SetSecurityDescriptorSacl(NewSecurityDescriptor, SaclPresent.getValue().booleanValue(), Sacl.getValue(), SaclDefaulted.getValue().booleanValue());
+                    if (Result == false)
+                        break;
+                }
+
+                //
+                // Make
+                //
+                {
+                    Pointer SRSD;
+                    IntByReference SRSDLength = new IntByReference(new Integer(0));
+
+                    Result = Advapi32Ex.INSTANCE.MakeSelfRelativeSD(NewSecurityDescriptor, null, SRSDLength);
+                    if (Result == false && Kernel32.INSTANCE.GetLastError() != ERROR_INSUFFICIENT_BUFFER)
+                        break;
+
+                    SecurityDescriptorLength.setValue(SRSDLength.getValue());
+
+                    if (BufferLength < SRSDLength.getValue())
+                    {
+                        ResultCode = ERROR_MORE_DATA;
+                        Result = true;
+
+                        break;
+                    }
+
+                    SRSD = Kernel32.INSTANCE.LocalAlloc(LPTR, SRSDLength.getValue());
+                    Result = Advapi32Ex.INSTANCE.MakeSelfRelativeSD(NewSecurityDescriptor, SRSD, SRSDLength);
+                    if (Result == false)
+                        break;
+
+                    Buffer.put(SRSD.getByteBuffer(0, SRSDLength.getValue()));
+
+                    Kernel32.INSTANCE.LocalFree(SRSD);
+                }
+
+            }while (false);
+
+            if (Result == false)
+                ResultCode = Kernel32.INSTANCE.GetLastError();
+
+            Kernel32.INSTANCE.LocalFree(NewSecurityDescriptor);
+
+            return ResultCode;
+        }
+
+        int setSecurityDescriptor(int SecurityInformation, ByteBuffer SecurityDescriptor, int SecurityDescriptorLength)
+        {
+            boolean Result = true;
+            int  ResultCode = ERROR_SUCCESS;
+
+            if (securityDescriptor == null) allocateDefaultSecurityDescriptor();
+
+            byte[] SDDataArray = new byte[SecurityDescriptorLength];
+            SecurityDescriptor.get(SDDataArray);
+            Pointer InputSecurityDescriptor = new Memory(SecurityDescriptorLength);
+            InputSecurityDescriptor.write(0, SDDataArray, 0, SDDataArray.length);
+            Pointer TargetSecurityDescriptor;
+            Pointer NewSecurityDescriptor = Kernel32.INSTANCE.LocalAlloc(LPTR, new SECURITY_DESCRIPTOR_RELATIVE().size() + 0x100);
+
+            Advapi32Ex.INSTANCE.InitializeSecurityDescriptor(NewSecurityDescriptor, SECURITY_DESCRIPTOR_REVISION);
+            do
+            {
+                //
+                // Owner
+                //
+                {
+                    PSIDByReference Owner = new PSIDByReference();
+                    BOOLByReference OwnerDefaulted = new BOOLByReference();
+
+                    if ((SecurityInformation & OWNER_SECURITY_INFORMATION) != 0)
+                        TargetSecurityDescriptor = InputSecurityDescriptor;
+                    else
+                        TargetSecurityDescriptor = securityDescriptor;
+
+                    Result = Advapi32Ex.INSTANCE.GetSecurityDescriptorOwner(TargetSecurityDescriptor, Owner, OwnerDefaulted);
+                    if (Result == false)
+                        break;
+
+                    Result = Advapi32Ex.INSTANCE.SetSecurityDescriptorOwner(NewSecurityDescriptor, Owner.getValue(), OwnerDefaulted.getValue().booleanValue());
+                    if (Result == false)
+                        break;
+                }
+
+
+                //
+                // Group
+                //
+                {
+                    PSIDByReference Group = new PSIDByReference();
+                    BOOLByReference GroupDefaulted = new BOOLByReference();
+
+                    if ((SecurityInformation & GROUP_SECURITY_INFORMATION) != 0)
+                        TargetSecurityDescriptor = InputSecurityDescriptor;
+                    else
+                        TargetSecurityDescriptor = securityDescriptor;
+
+                    Result = Advapi32Ex.INSTANCE.GetSecurityDescriptorGroup(TargetSecurityDescriptor, Group, GroupDefaulted);
+                    if (Result == false)
+                        break;
+
+                    Result = Advapi32Ex.INSTANCE.SetSecurityDescriptorGroup(NewSecurityDescriptor, Group.getValue(), GroupDefaulted.getValue().booleanValue());
+                    if (Result == false)
+                        break;
+                }
+
+                //
+                // Dacl
+                //
+                {
+                    BOOLByReference DaclPresent = new BOOLByReference();
+                    PACLByReference Dacl = new PACLByReference();
+                    BOOLByReference DaclDefaulted = new BOOLByReference();
+
+                    if ((SecurityInformation & DACL_SECURITY_INFORMATION) != 0)
+                        TargetSecurityDescriptor = InputSecurityDescriptor;
+                    else
+                        TargetSecurityDescriptor = securityDescriptor;
+
+                    Result = Advapi32Ex.INSTANCE.GetSecurityDescriptorDacl(TargetSecurityDescriptor, DaclPresent, Dacl, DaclDefaulted);
+                    if (Result == false)
+                        break;
+
+                    Result = Advapi32Ex.INSTANCE.SetSecurityDescriptorDacl(NewSecurityDescriptor, DaclPresent.getValue().booleanValue(), Dacl.getValue(), DaclDefaulted.getValue().booleanValue());
+                    if (Result == false)
+                        break;
+                }
+
+                //
+                // Sacl
+                //
+                {
+                    BOOLByReference SaclPresent = new BOOLByReference();
+                    PACLByReference Sacl = new PACLByReference();
+                    BOOLByReference SaclDefaulted = new BOOLByReference();
+
+                    if ((SecurityInformation & SACL_SECURITY_INFORMATION) != 0)
+                        TargetSecurityDescriptor = InputSecurityDescriptor;
+                    else
+                        TargetSecurityDescriptor = securityDescriptor;
+
+                    Result = Advapi32Ex.INSTANCE.GetSecurityDescriptorSacl(TargetSecurityDescriptor, SaclPresent, Sacl, SaclDefaulted);
+                    if (Result == false)
+                        break;
+
+                    Result = Advapi32Ex.INSTANCE.SetSecurityDescriptorSacl(NewSecurityDescriptor, SaclPresent.getValue().booleanValue(), Sacl.getValue(), SaclDefaulted.getValue().booleanValue());
+                    if (Result == false)
+                        break;
+                }
+
+                //
+                // Make
+                //
+                {
+                    Pointer SRSD;
+                    IntByReference SRSDLength = new IntByReference(new Integer(0));
+
+                    Result = Advapi32Ex.INSTANCE.MakeSelfRelativeSD(NewSecurityDescriptor, null, SRSDLength);
+                    if (Result == false && Kernel32.INSTANCE.GetLastError() != ERROR_INSUFFICIENT_BUFFER)
+                        break;
+
+                    SRSD = Kernel32.INSTANCE.LocalAlloc(LPTR, SRSDLength.getValue());
+                    Result = Advapi32Ex.INSTANCE.MakeSelfRelativeSD(NewSecurityDescriptor, SRSD, SRSDLength);
+                    if (Result == false)
+                        break;
+
+                    Kernel32.INSTANCE.LocalFree(securityDescriptor);
+                    securityDescriptor = SRSD;
+                    securityDescriptorLength = SRSDLength.getValue();
+                }
+
+            }while (false);
+
+            if (Result == false)
+                ResultCode = Kernel32.INSTANCE.GetLastError();
+
+            Kernel32.INSTANCE.LocalFree(NewSecurityDescriptor);
+
+            return ResultCode;
+        }
+
+        int refOpen()
+        {
+            ++openCount;
+            return openCount;
+        }
+
+        int derOpen()
+        {
+            --openCount;
+            return openCount;
+        }
+
+        private String getCurrentUserSid() {
+            HANDLE AccessToken = new HANDLE();
+            HANDLEByReference AccessTokenRef = new HANDLEByReference(AccessToken);
+            TOKEN_USER UserToken = new TOKEN_USER(1024);
+            PointerByReference StringSid = new PointerByReference();
+            IntByReference InfoSize = new IntByReference(0);
+
+            if (!Advapi32.INSTANCE.OpenThreadToken(Kernel32.INSTANCE.GetCurrentThread(), TOKEN_QUERY, true, AccessTokenRef)) {
+                if (Kernel32.INSTANCE.GetLastError() == ERROR_NO_TOKEN) {
+                    Advapi32.INSTANCE.OpenProcessToken(Kernel32.INSTANCE.GetCurrentProcess(), TOKEN_QUERY, AccessTokenRef);
+                }
+            }
+
+            Advapi32.INSTANCE.GetTokenInformation(AccessTokenRef.getValue(), TokenUser, UserToken, 1024, InfoSize);
+
+            Advapi32.INSTANCE.ConvertSidToStringSid(UserToken.User.Sid, StringSid);
+
+            Kernel32.INSTANCE.CloseHandle(AccessToken);
+
+            Pointer ptr = StringSid.getValue();
+            try {
+                return ptr.getWideString(0);
+            } finally {
+                Kernel32Util.freeLocalMemory(ptr);
+            }
+        }
+
+        interface Advapi32Ex extends StdCallLibrary {
+            Advapi32Ex INSTANCE = Native.load("Advapi32", Advapi32Ex.class, W32APIOptions.DEFAULT_OPTIONS);
+            boolean ConvertStringSecurityDescriptorToSecurityDescriptor(String var1, int var2, PointerByReference var3, ULONGByReference var4);
+            boolean GetSecurityDescriptorOwner(Pointer var1, PSIDByReference var2, BOOLByReference var3);
+            boolean SetSecurityDescriptorOwner(Pointer var1, PSID var2, boolean var3);
+            boolean GetSecurityDescriptorGroup(Pointer var1, PSIDByReference var2, BOOLByReference var3);
+            boolean SetSecurityDescriptorGroup(Pointer var1, PSID var2, boolean var3);
+            boolean GetSecurityDescriptorDacl(Pointer var1, BOOLByReference var2, PACLByReference var3, BOOLByReference var4);
+            boolean SetSecurityDescriptorDacl(Pointer var1, boolean var2, ACL var3, boolean var4);
+            boolean SetSecurityDescriptorSacl(Pointer var1, boolean var2, ACL var3, boolean var4);
+            boolean GetSecurityDescriptorSacl(Pointer var1, BOOLByReference var2, PACLByReference var3, BOOLByReference var4);
+            boolean MakeSelfRelativeSD(Pointer var1, Pointer var2, IntByReference var3);
+            boolean InitializeSecurityDescriptor(Pointer var1, int var2);
+        }
+
+        void allocateDefaultSecurityDescriptor()
+        {
+            if (securityDescriptor != null) {
+                Kernel32.INSTANCE.LocalFree(securityDescriptor);
+                securityDescriptor = null;
+                securityDescriptorLength = 0;
+            }
+
+            //
+            // Format
+            // O : owner_sid, SID string: https://docs.microsoft.com/en-us/windows/win32/secauthz/sid-strings
+            // G : group_sid, SID string: https://docs.microsoft.com/en-us/windows/win32/secauthz/sid-strings
+            // D : dacl_flags(string_ace1)(string_ace2)... (string_acen), ACE string: https://docs.microsoft.com/en-us/windows/win32/secauthz/ace-strings
+            // S : sacl_flags(string_ace1)(string_ace2)... (string_acen), ACE string: https://docs.microsoft.com/en-us/windows/win32/secauthz/ace-strings
+            //
+            // ACE string syntax: ace_type;ace_flags;rights;object_guid;inherit_object_guid;account_sid;(resource_attribute)
+            //                    https://docs.microsoft.com/en-us/windows/win32/secauthz/ace-strings
+            //
+
+            String CurentUserSid = getCurrentUserSid();
+            String StringSecurityDescriptor;
+            int  CUAccessRights, AUAccessRights, BAAccessRights;
+
+            //
+            // Current User
+            //
+            CUAccessRights = FILE_GENERIC_READ | FILE_GENERIC_EXECUTE;
+
+            //
+            // Authenticated User
+            //
+            AUAccessRights = FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE | DELETE;
+
+            //
+            // Administrator User
+            //
+            BAAccessRights = FILE_ALL_ACCESS;
+
+
+            //
+            // ------------------- File ----------------
+            // Owner: Current User
+            // Group: Current User
+            // -----------------------------------------
+            //
+            if ((attributes & FILE_ATTRIBUTE_DIRECTORY) == 0)
+                StringSecurityDescriptor = String.format(
+                        "O:%sG:%sD:(A;;0x%X;;;%s)(A;;0x%X;;;AU)(A;;0x%X;;;BA)",
+                        CurentUserSid, CurentUserSid, CUAccessRights, CurentUserSid, AUAccessRights, BAAccessRights);
+                //
+                // ------------------ Directory -------------
+                // Owner: Current User
+                // Group: Current User
+                // ------------------------------------------
+                //
+            else
+                StringSecurityDescriptor = String.format(
+                        "O:%sG:%sD:(A;OICI;0x%X;;;%s)(A;OICI;0x%X;;;AU)(A;OICI;0x%X;;;BA)",
+                        CurentUserSid, CurentUserSid, CUAccessRights, CurentUserSid, AUAccessRights, BAAccessRights);
+
+            ULONGByReference SecurityDescriptorLength = new ULONGByReference(new ULONG(0));
+            PointerByReference SecurityDescriptor = new PointerByReference();
+            if (Advapi32Ex.INSTANCE.ConvertStringSecurityDescriptorToSecurityDescriptor(StringSecurityDescriptor,
+                    SECURITY_DESCRIPTOR_REVISION,
+                    SecurityDescriptor,
+                    SecurityDescriptorLength)) {
+                securityDescriptor = SecurityDescriptor.getValue();
+                securityDescriptorLength = SecurityDescriptorLength.getValue().longValue();
+
+                assert (Advapi32.INSTANCE.IsValidSecurityDescriptor(securityDescriptor));
+            }
+
         }
 
         boolean isDirectory() {

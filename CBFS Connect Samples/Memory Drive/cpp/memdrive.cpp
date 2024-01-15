@@ -1,5 +1,5 @@
 /*
- * CBFS Connect 2024 C++ Edition - Sample Project
+ * CBFS Connect 2022 C++ Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -21,7 +21,6 @@
 #include <Shlwapi.h>
 #include <filesystem>
 #include <string>
-#include <tchar.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -655,7 +654,7 @@ cbt_string ConvertRelativePathToAbsolute(const cbt_string& path, bool acceptMoun
         if (isNetworkMountingPoint) {
             if (!acceptMountingPoint) {
                 sout << L"The path '" << path << L"' format cannot be equal to the Network Mounting Point" << std::endl;
-                return _T("");
+                return path;
             }
             size_t pos = path.find(L";");
             if (pos != cbt_string::npos) {
@@ -671,8 +670,7 @@ cbt_string ConvertRelativePathToAbsolute(const cbt_string& path, bool acceptMoun
 #ifdef _WIN32
             if (IsDriveLetter(res)) {
                 if (!acceptMountingPoint) {
-                    sout << L"The path '" << res << L"' cannot be equal to the drive letter" << std::endl;
-                    return _T("");
+                    sout << L"The path '" << res << L"' format cannot be equal to the Drive Letter" << std::endl;
                 }
                 return path;
             }
@@ -680,14 +678,14 @@ cbt_string ConvertRelativePathToAbsolute(const cbt_string& path, bool acceptMoun
             const char pathSeparator = '\\';
             if (_wgetcwd(currentDir, _MAX_PATH) == nullptr) {
                 sout << "Error getting current directory." << std::endl;
-                return _T("");
+                return L"";
             }
 #else
             char currentDir[PATH_MAX];
             const char pathSeparator = '/';
             if (getcwd(currentDir, sizeof(currentDir)) == nullptr) {
                 sout << "Error getting current directory." << std::endl;
-                return _T("");
+                return "";
             }
 #endif
             cbt_string currentDirStr(currentDir);
@@ -702,7 +700,6 @@ cbt_string ConvertRelativePathToAbsolute(const cbt_string& path, bool acceptMoun
     }
     else {
         sout << L"Error: The input path is empty." << std::endl;
-        return _T("");
     }
     return path;
 }
@@ -742,10 +739,6 @@ int main(int argc, char* argv[]) {
                         argi++;
                         if (argi < argc) {
                             cbt_string opt_icon_path_wstr = ConvertRelativePathToAbsolute(a2w(argv[argi]));
-                            if (opt_icon_path_wstr.empty()) {
-                                printf("Error: Invalid Icon Path\n");
-                                exit(1);
-                            }
                             opt_icon_path = wcsdup(opt_icon_path_wstr.c_str());
                         }
                     }
@@ -761,10 +754,6 @@ int main(int argc, char* argv[]) {
                         if (argi < argc) {
                             printf("Installing drivers from '%s'\n", argv[argi]);
                             cbt_string driver_path_wstr = ConvertRelativePathToAbsolute(a2w(argv[argi]));
-                            if (driver_path_wstr.empty()) {
-                                printf("Error: Invalid Driver Path\n");
-                                exit(1);
-                            }
                             LPCWSTR driver_path = wcsdup(driver_path_wstr.c_str());
                             drv_reboot = cbfs.Install(driver_path, g_Guid, NULL,
                                 cbcConstants::MODULE_DRIVER | cbcConstants::MODULE_HELPER_DLL,
@@ -811,10 +800,6 @@ int main(int argc, char* argv[]) {
                 }
 
                 cbt_string mount_point_wstr = ConvertRelativePathToAbsolute(a2w(argv[argi]), true);
-                if (mount_point_wstr.empty()) {
-                    printf("Error: Invalid Mounting Point Path\n");
-                    exit(1);
-                }
                 mount_point = wcsdup(mount_point_wstr.c_str());
 
                 retVal = cbfs.CreateStorage();
@@ -841,16 +826,16 @@ int main(int argc, char* argv[]) {
 #ifdef WIN32
                 if (opt_local)
                     flags |= cbcConstants::STGMP_LOCAL;
-                else
+				else
 #endif
-                    if (opt_network)
-                        flags = cbcConstants::STGMP_NETWORK;
+                if (opt_network)
+                    flags = cbcConstants::STGMP_NETWORK;
 #ifdef WIN32
-                    else
-                        flags |= cbcConstants::STGMP_MOUNT_MANAGER;
+                else
+                    flags |= cbcConstants::STGMP_MOUNT_MANAGER;
 #else
-                    else
-                        flags |= cbcConstants::STGMP_SIMPLE;
+                else
+                    flags |= cbcConstants::STGMP_SIMPLE;
 #endif
                 if (cbfs.AddMountingPoint(mount_point, flags, 0) == 0)
                     mounted = 1;

@@ -1,5 +1,5 @@
 /*
- * CBFS Connect 2024 Java Edition - Sample Project
+ * CBFS Connect 2022 Java Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -21,53 +21,53 @@ import java.util.regex.Pattern;
 
 import cbfsconnect.*;
 
-class FUSEDriveCache extends CBCache implements CBCacheEventListener
+class FuseDriveCache extends Cbcache implements CbcacheEventListener
 {
     private cachefusememdrive owner;
 
-    public FUSEDriveCache(cachefusememdrive owner)
+    public FuseDriveCache(cachefusememdrive owner)
     {
         this.owner = owner;
     }
 
     @Override
-    public void beforeFlush(CBCacheBeforeFlushEvent cbcacheBeforeFlushEvent)
+    public void beforeFlush(CbcacheBeforeFlushEvent cbcacheBeforeFlushEvent)
     {
 
     }
 
     @Override
-    public void beforePurge(CBCacheBeforePurgeEvent cbcacheBeforePurgeEvent)
+    public void beforePurge(CbcacheBeforePurgeEvent cbcacheBeforePurgeEvent)
     {
 
     }
 
     @Override
-    public void endCleanup(CBCacheEndCleanupEvent cbcacheEndCleanupEvent)
+    public void endCleanup(CbcacheEndCleanupEvent cbcacheEndCleanupEvent)
     {
 
     }
 
     @Override
-    public void error(CBCacheErrorEvent cbcacheErrorEvent)
+    public void error(CbcacheErrorEvent cbcacheErrorEvent)
     {
 
     }
 
     @Override
-    public void log(CBCacheLogEvent cbcacheLogEvent)
+    public void log(CbcacheLogEvent cbcacheLogEvent)
     {
 
     }
 
     @Override
-    public void progress(CBCacheProgressEvent cbcacheProgressEvent)
+    public void progress(CbcacheProgressEvent cbcacheProgressEvent)
     {
 
     }
 
     @Override
-    public void readData(CBCacheReadDataEvent e)
+    public void readData(CbcacheReadDataEvent e)
     {
         if ((e.flags & Constants.RWEVENT_CANCELED) == Constants.RWEVENT_CANCELED)
             return;
@@ -103,19 +103,19 @@ class FUSEDriveCache extends CBCache implements CBCacheEventListener
     }
 
     @Override
-    public void startCleanup(CBCacheStartCleanupEvent cbcacheStartCleanupEvent)
+    public void startCleanup(CbcacheStartCleanupEvent cbcacheStartCleanupEvent)
     {
 
     }
 
     @Override
-    public void status(CBCacheStatusEvent cbcacheStatusEvent)
+    public void status(CbcacheStatusEvent cbcacheStatusEvent)
     {
 
     }
 
     @Override
-    public void writeData(CBCacheWriteDataEvent e)
+    public void writeData(CbcacheWriteDataEvent e)
     {
         if ((e.flags & Constants.RWEVENT_CANCELED) == Constants.RWEVENT_CANCELED)
             return;
@@ -294,7 +294,7 @@ class globals {
     }
 }
 
-public class cachefusememdrive implements FUSEEventListener {
+public class cachefusememdrive implements FuseEventListener {
 
     private static final String PRODUCT_GUID = "{713CC6CE-B3E2-4fd9-838D-E28F558F6866}";
     private static final int SECTOR_SIZE = 512;
@@ -351,8 +351,8 @@ public class cachefusememdrive implements FUSEEventListener {
 
     private static final long EMPTY_DATE;
 
-    private static FUSE fuse;
-    private static FUSEDriveCache cache;
+    private static Fuse fuse;
+    private static FuseDriveCache cache;
 
     private static final Pattern DRIVE_LETTER_PATTERN = Pattern.compile("^[A-Za-z]:$");
 
@@ -413,7 +413,7 @@ public class cachefusememdrive implements FUSEEventListener {
         try {
             if (!initialized) {
                 fuse.initialize(PRODUCT_GUID);
-                fuse.addFUSEEventListener(this);
+                fuse.addFuseEventListener(this);
                 initialized = true;
             }
 
@@ -505,11 +505,11 @@ public class cachefusememdrive implements FUSEEventListener {
                 return;
             }
 
-            cabFileLocation = ConvertRelativePathToAbsolute(args[1]);
+            cabFileLocation = args[1];
             if (isNullOrEmpty(cabFileLocation)) {
-                System.out.println("Error: Invalid Cab File Path");
-                System.exit(1);
+                return;
             }
+            cabFileLocation = ConvertRelativePathToAbsolute(cabFileLocation);
 
             if (doInstall) {
                 install();
@@ -526,10 +526,6 @@ public class cachefusememdrive implements FUSEEventListener {
             mountingPoint += ":";
         }
         mountingPoint = ConvertRelativePathToAbsolute(mountingPoint, true);
-        if (isNullOrEmpty(mountingPoint)) {
-            System.out.println("Error: Invalid Mountig Point Path");
-            System.exit(1);
-        }
 
         mount();
         waitForQuit();
@@ -573,7 +569,7 @@ public class cachefusememdrive implements FUSEEventListener {
             if (isNetworkMountingPoint) {
                 if (!acceptMountingPoint) {
                     System.out.println("The path '" + path + "' format cannot be equal to the Network Mounting Point");
-                    return "";
+                    return path;
                 }
                 int pos = path.indexOf(';');
                 if (pos != path.length() - 1) {
@@ -588,7 +584,6 @@ public class cachefusememdrive implements FUSEEventListener {
             if (isDriveLetter(res)) {
                 if (!acceptMountingPoint) {
                     System.out.println("The path '" + res + "' format cannot be equal to the Drive Letter");
-                    return "";
                 }
                 return path;
             }
@@ -651,9 +646,9 @@ public class cachefusememdrive implements FUSEEventListener {
         }
 
         try {
-            cache = new FUSEDriveCache(this);
+            cache = new FuseDriveCache(this);
 
-            cache.addCBCacheEventListener(cache); // this sets an event handler. We could have an implementation of the CBCacheEventListener interface in the main class, but a dedicated class provides cleaner code.
+            cache.addCbcacheEventListener(cache); // this sets an event handler. We could have an implementation of the CbcacheEventListener interface in the main class, but a dedicated class provides cleaner code.
 
             String CacheDirectory = "./cache";
             File dir = new File(CacheDirectory);
@@ -684,7 +679,7 @@ public class cachefusememdrive implements FUSEEventListener {
     public static void main(String[] args) {
         try
         {
-            fuse = new FUSE();
+            fuse = new Fuse();
         }
         catch (UnsatisfiedLinkError ex)
         {
@@ -705,9 +700,9 @@ public class cachefusememdrive implements FUSEEventListener {
     }
 
     // -----------------------------------
-    // Implementation of FUSEEventListener
+    // Implementation of FuseEventListener
 
-    public void access(FUSEAccessEvent e) {
+    public void access(FuseAccessEvent e) {
         if (isNullOrEmpty(e.path)) {
             e.result = -ENOENT;
             return;
@@ -720,7 +715,7 @@ public class cachefusememdrive implements FUSEEventListener {
         }
     }
 
-    public void chmod(FUSEChmodEvent e) {
+    public void chmod(FuseChmodEvent e) {
         if (isNullOrEmpty(e.path)) {
             e.result = -ENOENT;
             return;
@@ -735,7 +730,7 @@ public class cachefusememdrive implements FUSEEventListener {
         file.setMode(e.mode);
     }
 
-    public void chown(FUSEChownEvent e) {
+    public void chown(FuseChownEvent e) {
         if (isNullOrEmpty(e.path)) {
             e.result = -ENOENT;
             return;
@@ -751,9 +746,9 @@ public class cachefusememdrive implements FUSEEventListener {
         file.setUid(e.uid);
     }
 
-    public void copyFileRange(FUSECopyFileRangeEvent e) {}
+    public void copyFileRange(FuseCopyFileRangeEvent e) {}
 
-    public void create(FUSECreateEvent e) {
+    public void create(FuseCreateEvent e) {
         String[] names = splitName(e.path);
         if (names == null) {
             e.result = -ENOENT;
@@ -798,13 +793,13 @@ public class cachefusememdrive implements FUSEEventListener {
         }
     }
 
-    public void destroy(FUSEDestroyEvent e) {}
+    public void destroy(FuseDestroyEvent e) {}
 
-    public void error(FUSEErrorEvent e) {
+    public void error(FuseErrorEvent e) {
         System.out.println(String.format("Error: %d, Description: %s", e.errorCode, e.description));
     }
 
-    public void FAllocate(FUSEFAllocateEvent e)
+    public void FAllocate(FuseFAllocateEvent e)
     {
         VirtualFile file = (VirtualFile) globals.get(e.fileContext);
         if (file == null)
@@ -847,11 +842,11 @@ public class cachefusememdrive implements FUSEEventListener {
         }
     }
 
-    public void flush(FUSEFlushEvent e) {}
+    public void flush(FuseFlushEvent e) {}
 
-    public void FSync(FUSEFSyncEvent e) {}
+    public void FSync(FuseFSyncEvent e) {}
 
-    public void getAttr(FUSEGetAttrEvent e) {
+    public void getAttr(FuseGetAttrEvent e) {
         if (isNullOrEmpty(e.path)) {
             e.result = -ENOENT;
             return;
@@ -883,11 +878,11 @@ public class cachefusememdrive implements FUSEEventListener {
         }
     }
 
-    public void init(FUSEInitEvent e) {}
+    public void init(FuseInitEvent e) {}
 
-    public void lock(FUSELockEvent e) {}
+    public void lock(FuseLockEvent e) {}
 
-    public void mkDir(FUSEMkDirEvent e) {
+    public void mkDir(FuseMkDirEvent e) {
         String[] names = splitName(e.path);
         if (names == null) {
             e.result = -ENOENT;
@@ -918,7 +913,7 @@ public class cachefusememdrive implements FUSEEventListener {
         }
     }
 
-    public void open(FUSEOpenEvent e) {
+    public void open(FuseOpenEvent e) {
         boolean contextFound = false;
         VirtualFile file = null;
         if (e.fileContext != 0) {
@@ -949,7 +944,7 @@ public class cachefusememdrive implements FUSEEventListener {
         }
     }
 
-    public void read(FUSEReadEvent e) {
+    public void read(FuseReadEvent e) {
 
         try
         {
@@ -995,7 +990,7 @@ public class cachefusememdrive implements FUSEEventListener {
 
     }
 
-    public void readDir(FUSEReadDirEvent e) {
+    public void readDir(FuseReadDirEvent e) {
         VirtualFile dir = Files.get(e.path);
         if (dir != null) {
             List<String> content = dir.enumerate();
@@ -1022,7 +1017,7 @@ public class cachefusememdrive implements FUSEEventListener {
         }
     }
 
-    public void release(FUSEReleaseEvent e) {
+    public void release(FuseReleaseEvent e) {
         if (e.fileContext != 0) {
 
             try
@@ -1040,7 +1035,7 @@ public class cachefusememdrive implements FUSEEventListener {
         }
     }
 
-    public void rename(FUSERenameEvent e) {
+    public void rename(FuseRenameEvent e) {
         VirtualFile file = Files.get(e.oldPath);
         if (file == null) {
             e.result = -ENOENT;
@@ -1098,7 +1093,7 @@ public class cachefusememdrive implements FUSEEventListener {
         }
     }
 
-    public void rmDir(FUSERmDirEvent e) {
+    public void rmDir(FuseRmDirEvent e) {
         VirtualFile file = Files.get(e.path);
         if ((file == null) || (!file.isDirectory())) {
             e.result = -ENOENT;
@@ -1107,7 +1102,7 @@ public class cachefusememdrive implements FUSEEventListener {
         Files.delete(e.path);
     }
 
-    public void statFS(FUSEStatFSEvent e) {
+    public void statFS(FuseStatFSEvent e) {
         e.blockSize = SECTOR_SIZE;
         e.freeBlocks = (DRIVE_SIZE - Files.calcSize() + SECTOR_SIZE / 2) / SECTOR_SIZE;
         e.freeBlocksAvail = e.freeBlocks;
@@ -1115,7 +1110,7 @@ public class cachefusememdrive implements FUSEEventListener {
         e.maxFilenameLength = 255;
     }
 
-    public void truncate(FUSETruncateEvent e) {
+    public void truncate(FuseTruncateEvent e) {
         VirtualFile file = (VirtualFile) globals.get(e.fileContext);
         if (file == null) {
             file = Files.get(e.path);
@@ -1134,7 +1129,7 @@ public class cachefusememdrive implements FUSEEventListener {
         }
     }
 
-    public void unlink(FUSEUnlinkEvent e) {
+    public void unlink(FuseUnlinkEvent e) {
         VirtualFile file = Files.get(e.path);
         if (file == null) {
             e.result = -ENOENT;
@@ -1154,7 +1149,7 @@ public class cachefusememdrive implements FUSEEventListener {
         }
     }
 
-    public void utimens(FUSEUtimensEvent e) {
+    public void utimens(FuseUtimensEvent e) {
         VirtualFile file = Files.get(e.path);
         if (file == null) {
             e.result = -ENOENT;
@@ -1166,7 +1161,7 @@ public class cachefusememdrive implements FUSEEventListener {
             file.setLastWriteTime(e.MTime);
     }
 
-    public void write(FUSEWriteEvent e) {
+    public void write(FuseWriteEvent e) {
         try
         {
             if (e.offset < 0)
@@ -1208,7 +1203,7 @@ public class cachefusememdrive implements FUSEEventListener {
         }
     }
 
-    // End of FUSEEventListener implementation
+    // End of FuseEventListener implementation
     // --------------------------------------
 
     private enum DriverStatus {

@@ -2,16 +2,16 @@
 The provided sample projects offer a concise yet effective demonstration of the components from CBFS Connect, showcasing their usage in a straightforward manner. While they are not intended to be complete applications, they serve as valuable illustrations of key features. To enhance clarity, error handling and checks are simplified, allowing users to focus on the core functionality.
 
 ## Requirements
-CBFS Connect 2024 libraries for the corresponding edition are required to run these samples.  Free download from: [https://www.callback.com/cbfsconnect](https://www.callback.com/cbfsconnect)
+CBFS Connect 2022 libraries for the corresponding edition are required to run these samples.  Free download from: [https://www.callback.com/cbfsconnect](https://www.callback.com/cbfsconnect)
 
 ## Reference Documentation
-* [Java Edition](https://cdn.callback.com/help/CCJ/java/)
-* [.NET Edition](https://cdn.callback.com/help/CCJ/cs/)
-* [Python Edition](https://cdn.callback.com/help/CCJ/py/)
-* [C++ Edition](https://cdn.callback.com/help/CCJ/cpp/)
-* [Delphi Edition](https://cdn.callback.com/help/CCJ/dlp/)
-* [macOS Edition](https://cdn.callback.com/help/CCJ/mac/)
-* [iOS Edition](https://cdn.callback.com/help/CCJ/mac/)
+* [Java Edition](https://cdn.callback.com/help/CCH/java/)
+* [.NET Edition](https://cdn.callback.com/help/CCH/cs/)
+* [Python Edition](https://cdn.callback.com/help/CCH/py/)
+* [C++ Edition](https://cdn.callback.com/help/CCH/cpp/)
+* [Delphi Edition](https://cdn.callback.com/help/CCH/dlp/)
+* [macOS Edition](https://cdn.callback.com/help/CCH/mac/)
+* [iOS Edition](https://cdn.callback.com/help/CCH/mac/)
 
 ## Sample Projects
 | Sample Project | Description |
