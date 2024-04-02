@@ -640,6 +640,9 @@ def handle_parameters() -> int:
             if len(cur_param) == 1:
                 cur_param += ":"
             opt_mounting_point = convert_relative_path_to_absolute(cur_param, True)
+            if opt_mounting_point is None or opt_mounting_point == "":
+                print("Error: Invalid Mounting Point Path")
+                return 1
             break
 
         i += 1  # end of loop
@@ -676,7 +679,7 @@ def convert_relative_path_to_absolute(path, accept_mounting_point=False):
         if is_network_mounting_point:
             if not accept_mounting_point:
                 print(f"The path '{path}' format cannot be equal to the Network Mounting Point")
-                return path
+                return ""
             pos = path.find(';')
             if pos != len(path) - 1:
                 res = path[:pos]
@@ -687,6 +690,7 @@ def convert_relative_path_to_absolute(path, accept_mounting_point=False):
         if is_drive_letter(res):
             if not accept_mounting_point:
                 print(f"The path '{res}' format cannot be equal to the Drive Letter")
+                return ""
             return path
 
         if not os.path.isabs(res):

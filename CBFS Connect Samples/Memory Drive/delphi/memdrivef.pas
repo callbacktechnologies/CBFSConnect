@@ -1158,13 +1158,13 @@ var
   Dir : string;
 begin
   Dir := ExtractFilePath(FileName);
-  Result := FindVirtualFile(Dir, vfile) and (vfile.FileAttributes = FILE_ATTRIBUTE_DIRECTORY);
+  Result := FindVirtualFile(Dir, vfile) and ((vfile.FileAttributes and FILE_ATTRIBUTE_DIRECTORY) <> 0);
 end;
 
 function TFormMemDrive.FindVirtualDirectory(FileName: string; var vfile: VirtualFile): Boolean;
 begin
   if FindVirtualFile(FileName, vfile) and
-     (vfile.FileAttributes = FILE_ATTRIBUTE_DIRECTORY) then
+     ((vfile.FileAttributes and FILE_ATTRIBUTE_DIRECTORY) <> 0) then
     Result := true
   else
     Result := GetParentVirtualDirectory(FileName, vfile);
