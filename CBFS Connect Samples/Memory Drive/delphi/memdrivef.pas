@@ -1,5 +1,5 @@
 (*
- * CBFS Connect 2022 Delphi Edition - Sample Project
+ * CBFS Connect 2024 Delphi Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -32,6 +32,20 @@ const
   SERVICE_PAUSED = 7;
 
   SECTOR_SIZE = 512;
+
+  ERROR_NOT_A_REPARSE_POINT = 4390;
+  ERROR_REPARSE_ATTRIBUTE_CONFLICT = 4391;
+  ERROR_INVALID_REPARSE_DATA = 4392;
+  ERROR_REPARSE_TAG_INVALID = 4393;
+  ERROR_REPARSE_TAG_MISMATCH = 4394;
+
+  FSCTL_SET_REPARSE_POINT = $000900A4;
+  FSCTL_GET_REPARSE_POINT = $000900A8;
+  FSCTL_DELETE_REPARSE_POINT = $000900AC;
+
+  REPARSE_MOUNTPOINT_HEADER_SIZE = 8;
+  SYMLINK_FLAG_RELATIVE = 1;
+  IO_REPARSE_TAG_SYMLINK = $A000000C;
 
 type
   ENUM_INFO = record
@@ -78,12 +92,13 @@ type
     function CalculateFolderSize(var root: VirtualFile): Int64;
     function ConvertRelativePathToAbsolute(const path: string; acceptMountingPoint: Boolean): string;
     function IsDriveLetter(const path: string): Boolean;
+    function CreateReparsePoint(SourcePath, ReparsePath: string): Boolean;
   published
 
     procedure CBCanFileBeDeleted(
       Sender: TObject;
       const FileName: String;
-      HandleInfo: Int64;
+      const HandleInfo: Int64;
       var FileContext: Pointer;
       var HandleContext: Pointer;
       var CanBeDeleted: Boolean;
@@ -99,8 +114,8 @@ type
     procedure CBCloseFile(
       Sender: TObject;
       const FileName: String;
-      PendingDeletion: Boolean;
-      HandleInfo: Int64;
+      const PendingDeletion: Boolean;
+      const HandleInfo: Int64;
       var FileContext: Pointer;
       var HandleContext: Pointer;
       var ResultCode: Integer
@@ -108,13 +123,14 @@ type
     procedure CBCreateFile(
       Sender: TObject;
       const FileName: String;
-      DesiredAccess: Integer;
-      FileAttributes: Integer;
-      ShareMode: Integer;
-      NTCreateDisposition: Integer;
-      NTDesiredAccess: Integer;
-      FileInfo: Int64;
-      HandleInfo: Int64;
+      const DesiredAccess: Integer;
+      const FileAttributes: Integer;
+      const ShareMode: Integer;
+      const NTCreateDisposition: Integer;
+      const NTDesiredAccess: Integer;
+      const FileInfo: Int64;
+      const HandleInfo: Int64;
+      var Reserved: Boolean;
       var FileContext: Pointer;
       var HandleContext: Pointer;
       var ResultCode: Integer
@@ -129,9 +145,9 @@ type
       Sender: TObject;
       const DirectoryName: String;
       const Mask: String;
-      CaseSensitive: Boolean;
-      Restart: Boolean;
-      RequestedInfo: Integer;
+      const CaseSensitive: Boolean;
+      const Restart: Boolean;
+      const RequestedInfo: Integer;
       var FileFound: Boolean;
       var FileName: String;
       var ShortFileName: String;
@@ -144,7 +160,8 @@ type
       var FileId: Int64;
       var Attributes: Int64;
       var ReparseTag: Int64;
-      HandleInfo: Int64;
+      var EaSize: Integer;
+      const HandleInfo: Int64;
       var DirectoryContext: Pointer;
       var HandleContext: Pointer;
       var EnumerationContext: Pointer;
@@ -153,11 +170,11 @@ type
     procedure CBReadFile(
       Sender: TObject;
       const FileName: String;
-      Position: Int64;
+      const Position: Int64;
       Buffer: Pointer;
-      BytesToRead: Int64;
+      const BytesToRead: Int64;
       var BytesRead: Int64;
-      HandleInfo: Int64;
+      const HandleInfo: Int64;
       var FileContext: Pointer;
       var HandleContext: Pointer;
       var ResultCode: Integer
@@ -165,11 +182,11 @@ type
     procedure CBWriteFile(
       Sender: TObject;
       const FileName: String;
-      Position: Int64;
+      const Position: Int64;
       Buffer: Pointer;
-      BytesToWrite: Int64;
+      const BytesToWrite: Int64;
       var BytesWritten: Int64;
-      HandleInfo: Int64;
+      const HandleInfo: Int64;
       var FileContext: Pointer;
       var HandleContext: Pointer;
       var ResultCode: Integer
@@ -177,7 +194,7 @@ type
     procedure CBGetFileInfo(
       Sender: TObject;
       const FileName: String;
-      RequestedInfo: Integer;
+      const RequestedInfo: Integer;
       var FileExists: Boolean;
       var CreationTime: TDateTime;
       var LastAccessTime: TDateTime;
@@ -191,6 +208,7 @@ type
       var HardLinkCount: Integer;
       var ShortFileName: String;
       var RealFileName: String;
+      var EaSize: Integer;
       var ResultCode: Integer
     );
     procedure CBGetVolumeId(
@@ -216,13 +234,14 @@ type
     procedure CBOpenFile(
       Sender: TObject;
       const FileName: String;
-      DesiredAccess: Integer;
-      FileAttributes: Integer;
-      ShareMode: Integer;
-      NTCreateDisposition: Integer;
-      NTDesiredAccess: Integer;
-      FileInfo: Int64;
-      HandleInfo: Int64;
+      const DesiredAccess: Integer;
+      const FileAttributes: Integer;
+      const ShareMode: Integer;
+      const NTCreateDisposition: Integer;
+      const NTDesiredAccess: Integer;
+      const FileInfo: Int64;
+      const HandleInfo: Int64;
+      var Reserved: Boolean;
       var FileContext: Pointer;
       var HandleContext: Pointer;
       var ResultCode: Integer
@@ -231,7 +250,7 @@ type
       Sender: TObject;
       const FileName: String;
       const NewFileName: String;
-      HandleInfo: Int64;
+      const HandleInfo: Int64;
       var FileContext: Pointer;
       var HandleContext: Pointer;
       var ResultCode: Integer
@@ -243,8 +262,9 @@ type
       LastAccessTime: TDateTime;
       LastWriteTime: TDateTime;
       ChangeTime: TDateTime;
-      FileAttributes: Integer;
-      HandleInfo: Int64;
+      const FileAttributes: Integer;
+      const EventOrigin: Integer;
+      const HandleInfo: Int64;
       var FileContext: Pointer;
       var HandleContext: Pointer;
       var ResultCode: Integer
@@ -252,8 +272,8 @@ type
     procedure CBSetAllocationSize(
       Sender: TObject;
       const FileName: String;
-      AllocationSize: Int64;
-      HandleInfo: Int64;
+      const AllocationSize: Int64;
+      const HandleInfo: Int64;
       var FileContext: Pointer;
       var HandleContext: Pointer;
       var ResultCode: Integer
@@ -261,8 +281,8 @@ type
     procedure CBSetFileSize(
       Sender: TObject;
       const FileName: String;
-      Size: Int64;
-      HandleInfo: Int64;
+      const Size: Int64;
+      const HandleInfo: Int64;
       var FileContext: Pointer;
       var HandleContext: Pointer;
       var ResultCode: Integer
@@ -277,6 +297,37 @@ type
       const DirectoryName: String;
       var IsEmpty: Boolean;
       var DirectoryContext: Pointer;
+      var ResultCode: Integer
+    );
+    procedure CBSetReparsePoint(
+      Sender: TObject;
+      const FileName: String;
+      const ReparseTag: Int64;
+      ReparseBuffer: Pointer;
+      const ReparseBufferLength: Integer;
+      const HandleInfo: Int64;
+      var FileContext: Pointer;
+      var HandleContext: Pointer;
+      var ResultCode: Integer
+    );
+    procedure CBGetReparsePoint(
+      Sender: TObject;
+      const FileName: String;
+      ReparseBuffer: Pointer;
+      var ReparseBufferLength: Integer;
+      const HandleInfo: Int64;
+      var FileContext: Pointer;
+      var HandleContext: Pointer;
+      var ResultCode: Integer
+    );
+    procedure CBDeleteReparsePoint(
+      Sender: TObject;
+      const FileName: String;
+      ReparseBuffer: Pointer;
+      const ReparseBufferLength: Integer;
+      const HandleInfo: Int64;
+      var FileContext: Pointer;
+      var HandleContext: Pointer;
       var ResultCode: Integer
     );
     procedure CBUnmount(
@@ -326,7 +377,7 @@ end;
 procedure TFormMemDrive.CBCanFileBeDeleted(
   Sender: TObject;
   const FileName: String;
-  HandleInfo: Int64;
+  const HandleInfo: Int64;
   var FileContext: Pointer;
   var HandleContext: Pointer;
   var CanBeDeleted: Boolean;
@@ -366,8 +417,8 @@ end;
 procedure TFormMemDrive.CBCloseFile(
   Sender: TObject;
   const FileName: String;
-  PendingDeletion: Boolean;
-  HandleInfo: Int64;
+  const PendingDeletion: Boolean;
+  const HandleInfo: Int64;
   var FileContext: Pointer;
   var HandleContext: Pointer;
   var ResultCode: Integer);
@@ -378,13 +429,14 @@ end;
 procedure TFormMemDrive.CBCreateFile(
   Sender: TObject;
   const FileName: String;
-  DesiredAccess: Integer;
-  FileAttributes: Integer;
-  ShareMode: Integer;
-  NTCreateDisposition: Integer;
-  NTDesiredAccess: Integer;
-  FileInfo: Int64;
-  HandleInfo: Int64;
+  const DesiredAccess: Integer;
+  const FileAttributes: Integer;
+  const ShareMode: Integer;
+  const NTCreateDisposition: Integer;
+  const NTDesiredAccess: Integer;
+  const FileInfo: Int64;
+  const HandleInfo: Int64;
+  var Reserved: Boolean;
   var FileContext: Pointer;
   var HandleContext: Pointer;
   var ResultCode: Integer);
@@ -443,9 +495,9 @@ procedure TFormMemDrive.CBEnumerateDirectory(
   Sender: TObject;
   const DirectoryName: String;
   const Mask: String;
-  CaseSensitive: Boolean;
-  Restart: Boolean;
-  RequestedInfo: Integer;
+  const CaseSensitive: Boolean;
+  const Restart: Boolean;
+  const RequestedInfo: Integer;
   var FileFound: Boolean;
   var FileName: String;
   var ShortFileName: String;
@@ -458,7 +510,8 @@ procedure TFormMemDrive.CBEnumerateDirectory(
   var FileId: Int64;
   var Attributes: Int64;
   var ReparseTag: Int64;
-  HandleInfo: Int64;
+  var EaSize: Integer;
+  const HandleInfo: Int64;
   var DirectoryContext: Pointer;
   var HandleContext: Pointer;
   var EnumerationContext: Pointer;
@@ -530,7 +583,10 @@ begin
       Size            := vfile.Size;
       AllocationSize  := vfile.AllocationSize;
       FileId          := 0;
-      Attributes  := vfile.FileAttributes;
+      Attributes      := vfile.FileAttributes;
+      if (vfile.FileAttributes and FILE_ATTRIBUTE_REPARSE_POINT <> 0) and
+          FCbFs.UseReparsePoints then
+        ReparseTag    := vfile.ReparseTag;
     end;
 
     Inc(pInfo.Index);
@@ -544,24 +600,26 @@ end;
 procedure TFormMemDrive.CBReadFile(
   Sender: TObject;
   const FileName: String;
-  Position: Int64;
+  const Position: Int64;
   Buffer: Pointer;
-  BytesToRead: Int64;
+  const BytesToRead: Int64;
   var BytesRead: Int64;
-  HandleInfo: Int64;
+  const HandleInfo: Int64;
   var FileContext: Pointer;
   var HandleContext: Pointer;
   var ResultCode: Integer);
 var
   vfile: VirtualFile;
   cBytesRead : Cardinal;
+  BytesToReadReal: Int64;
 begin
   try
+    BytesToReadReal := BytesToRead;
     if BytesToRead > $7fffffff then
-      BytesToRead := $7fffffff;
+      BytesToReadReal := $7fffffff;
 
     vfile := VirtualFile(Pointer(FileContext));
-    vfile.Read(Buffer^, Position, BytesToRead, cBytesRead);
+    vfile.Read(Buffer^, Position, BytesToReadReal, cBytesRead);
     BytesRead := cBytesRead;
   except
     on E : Exception do
@@ -572,25 +630,27 @@ end;
 procedure TFormMemDrive.CBWriteFile(
   Sender: TObject;
   const FileName: String;
-  Position: Int64;
+  const Position: Int64;
   Buffer: Pointer;
-  BytesToWrite: Int64;
+  const BytesToWrite: Int64;
   var BytesWritten: Int64;
-  HandleInfo: Int64;
+  const HandleInfo: Int64;
   var FileContext: Pointer;
   var HandleContext: Pointer;
   var ResultCode: Integer);
 var
   vfile: VirtualFile;
   cBytesWritten : Cardinal;
+  BytesToWriteReal: Int64;
 begin
   try
+    BytesToWriteReal := BytesToWrite;
     if BytesToWrite > $7fffffff then
-      BytesToWrite := $7fffffff;
+      BytesToWriteReal := $7fffffff;
 
     vfile := VirtualFile(Pointer(FileContext));
     BytesWritten := 0;
-    vfile.Write(Buffer^, Position, BytesToWrite, cBytesWritten);
+    vfile.Write(Buffer^, Position, BytesToWriteReal, cBytesWritten);
     BytesWritten := cBytesWritten;
   except
     on E : Exception do
@@ -601,7 +661,7 @@ end;
 procedure TFormMemDrive.CBGetFileInfo(
   Sender: TObject;
   const FileName: String;
-  RequestedInfo: Integer;
+  const RequestedInfo: Integer;
   var FileExists: Boolean;
   var CreationTime: TDateTime;
   var LastAccessTime: TDateTime;
@@ -615,6 +675,7 @@ procedure TFormMemDrive.CBGetFileInfo(
   var HardLinkCount: Integer;
   var ShortFileName: String;
   var RealFileName: String;
+  var EaSize: Integer;
   var ResultCode: Integer);
 var
   vfile: VirtualFile;
@@ -630,8 +691,9 @@ begin
       LastWriteTime   := vfile.LastWriteTime;
       Size            := vfile.Size;
       AllocationSize  := vfile.AllocationSize;
-      FileId := 0;
-      Attributes  := vfile.FileAttributes;
+      FileId          := 0;
+      Attributes      := vfile.FileAttributes;
+      ReparseTag      := vfile.ReparseTag;
     end;
   except
     on E : Exception do
@@ -679,13 +741,14 @@ end;
 procedure TFormMemDrive.CBOpenFile(
   Sender: TObject;
   const FileName: String;
-  DesiredAccess: Integer;
-  FileAttributes: Integer;
-  ShareMode: Integer;
-  NTCreateDisposition: Integer;
-  NTDesiredAccess: Integer;
-  FileInfo: Int64;
-  HandleInfo: Int64;
+  const DesiredAccess: Integer;
+  const FileAttributes: Integer;
+  const ShareMode: Integer;
+  const NTCreateDisposition: Integer;
+  const NTDesiredAccess: Integer;
+  const FileInfo: Int64;
+  const HandleInfo: Int64;
+  var Reserved: Boolean;
   var FileContext: Pointer;
   var HandleContext: Pointer;
   var ResultCode: Integer);
@@ -711,7 +774,7 @@ procedure TFormMemDrive.CBRenameOrMoveFile(
   Sender: TObject;
   const FileName: String;
   const NewFileName: String;
-  HandleInfo: Int64;
+  const HandleInfo: Int64;
   var FileContext: Pointer;
   var HandleContext: Pointer;
   var ResultCode: Integer);
@@ -759,8 +822,9 @@ procedure TFormMemDrive.CBSetFileAttributes(
   LastAccessTime: TDateTime;
   LastWriteTime: TDateTime;
   ChangeTime: TDateTime;
-  FileAttributes: Integer;
-  HandleInfo: Int64;
+  const FileAttributes: Integer;
+  const EventOrigin: Integer;
+  const HandleInfo: Int64;
   var FileContext: Pointer;
   var HandleContext: Pointer;
   var ResultCode: Integer);
@@ -791,8 +855,8 @@ end;
 procedure TFormMemDrive.CBSetAllocationSize(
   Sender: TObject;
   const FileName: String;
-  AllocationSize: Int64;
-  HandleInfo: Int64;
+  const AllocationSize: Int64;
+  const HandleInfo: Int64;
   var FileContext: Pointer;
   var HandleContext: Pointer;
   var ResultCode: Integer);
@@ -811,8 +875,8 @@ end;
 procedure TFormMemDrive.CBSetFileSize(
   Sender: TObject;
   const FileName: String;
-  Size: Int64;
-  HandleInfo: Int64;
+  const Size: Int64;
+  const HandleInfo: Int64;
   var FileContext: Pointer;
   var HandleContext: Pointer;
   var ResultCode: Integer);
@@ -844,6 +908,114 @@ begin
       IsEmpty := vdir.Context.IsEmpty()
     else
       ResultCode := ERROR_PATH_NOT_FOUND;
+  except
+    on E : Exception do
+      ResultCode := ExceptionToErrorCode(E);
+  end;
+end;
+
+procedure TFormMemDrive.CBSetReparsePoint(
+  Sender: TObject;
+  const FileName: String;
+  const ReparseTag: Int64;
+  ReparseBuffer: Pointer;
+  const ReparseBufferLength: Integer;
+  const HandleInfo: Int64;
+  var FileContext: Pointer;
+  var HandleContext: Pointer;
+  var ResultCode: Integer);
+var
+  vfile: VirtualFile;
+begin
+  try
+    vfile := VirtualFile(Pointer(FileContext));
+    if vfile.ReparsePointBuffer <> nil then
+    begin
+      if vfile.ReparseTag <>  ReparseTag then
+      begin
+        ResultCode := ERROR_REPARSE_TAG_MISMATCH;
+        exit;
+      end;
+    end;
+    vfile.ReparsePointBuffer := GetMemory(ReparseBufferLength);
+    MoveMemory(ReparseBuffer, vfile.ReparsePointBuffer, ReparseBufferLength);
+    vfile.ReparseBufferLen := ReparseBufferLength;
+    vfile.ReparseTag := ReparseTag;
+    vfile.FileAttributes := vfile.FileAttributes or FILE_ATTRIBUTE_REPARSE_POINT;
+  except
+    on E : Exception do
+      ResultCode := ExceptionToErrorCode(E);
+  end;
+end;
+
+procedure TFormMemDrive.CBGetReparsePoint(
+  Sender: TObject;
+  const FileName: String;
+  ReparseBuffer: Pointer;
+  var ReparseBufferLength: Integer;
+  const HandleInfo: Int64;
+  var FileContext: Pointer;
+  var HandleContext: Pointer;
+  var ResultCode: Integer);
+ var
+  vfile: VirtualFile;
+begin
+  try
+    vfile := VirtualFile(Pointer(FileContext));
+    if vfile = nil then
+    begin
+        if FindVirtualFile(FileName, vfile) = false then
+        begin
+          ResultCode := ERROR_FILE_NOT_FOUND;
+          exit;
+        end;
+    end;
+
+    if (vfile.FileAttributes and FILE_ATTRIBUTE_REPARSE_POINT) <>  FILE_ATTRIBUTE_REPARSE_POINT then
+    begin
+      ResultCode := ERROR_NOT_A_REPARSE_POINT;
+      exit;
+    end;
+    if ReparseBufferLength < vfile.ReparseBufferLen then
+    begin
+      Move(vfile.ReparsePointBuffer, ReparseBuffer, ReparseBufferLength);
+      ResultCode := ERROR_MORE_DATA;
+      exit;
+    end;
+    Move(vfile.ReparsePointBuffer, ReparseBuffer, vfile.ReparseBufferLen);
+  except
+    on E : Exception do
+      ResultCode := ExceptionToErrorCode(E);
+  end;
+end;
+
+procedure TFormMemDrive.CBDeleteReparsePoint(
+  Sender: TObject;
+  const FileName: String;
+  ReparseBuffer: Pointer;
+  const ReparseBufferLength: Integer;
+  const HandleInfo: Int64;
+  var FileContext: Pointer;
+  var HandleContext: Pointer;
+  var ResultCode: Integer);
+ var
+  vfile: VirtualFile;
+begin
+  try
+    vfile := VirtualFile(Pointer(FileContext));
+    if (vfile.FileAttributes and FILE_ATTRIBUTE_REPARSE_POINT) <>  FILE_ATTRIBUTE_REPARSE_POINT then
+    begin
+      ResultCode := ERROR_NOT_A_REPARSE_POINT;
+      exit;
+    end;
+    if vfile.ReparsePointBuffer <> nil then
+    begin
+      FreeMem(vfile.ReparsePointBuffer);
+      vfile.ReparsePointBuffer := nil;
+      vfile.ReparseBufferLen := 0;
+      vfile.ReparseTag := 0;
+      vfile.FileAttributes := vfile.FileAttributes and not FILE_ATTRIBUTE_REPARSE_POINT;
+    end;
   except
     on E : Exception do
       ResultCode := ExceptionToErrorCode(E);
@@ -887,7 +1059,10 @@ begin
   FCbFs.OnReadFile                  := CBReadFile;
   FCbFs.OnWriteFile                 := CBWriteFile;
   FCbFs.OnIsDirectoryEmpty          := CBIsDirectoryEmpty;
-
+  FCbFs.UseReparsePoints            := true;
+  FCbFs.OnSetReparsePoint           := CBSetReparsePoint;
+  FCbFs.OnGetReparsePoint           := CBGetReparsePoint;
+  FCbFs.OnDeleteReparsePoint        := CBDeleteReparsePoint;
   UpdateDriverStatus;
 end;
 
@@ -1010,9 +1185,22 @@ begin
 end;
 
 procedure TFormMemDrive.btnMountClick(Sender: TObject);
+var
+  vDir, vFile: VirtualFile;
+  s: string;
+  written: cardinal;
 begin
   FDiskContext := VirtualFile.Create('\');
   FDiskContext.FileAttributes := FILE_ATTRIBUTE_DIRECTORY;
+
+  vDir := VirtualFile.Create('Sample');
+  vDir.FileAttributes := FILE_ATTRIBUTE_DIRECTORY;
+  FDiskContext.AddFile(vDir);
+  s := 'This is a file header \n---------------------------\n';
+  vFile := VirtualFile.Create('TestFile_1.txt');
+  written := 0;
+  vFile.Write(Pointer(s), 0, Length(s) * SizeOf(Char) , written);
+  vdir.AddFile(vFile);
 
   FCbFs.SerializeAccess := true;
   FCbFs.SerializeEvents := TcbccbfsSerializeEvents.seOnOneWorkerThread;
@@ -1066,6 +1254,8 @@ var
   S: string;
   w : Integer;
   mp: string;
+  root: VirtualFile;
+  vFullPathSymLink, vRelativePathSymLink: VirtualFile;
 begin
   Screen.Cursor := crHourGlass;
   mp := ConvertRelativePathToAbsolute(edtMountingPoint.Text, True);
@@ -1081,21 +1271,18 @@ begin
   else
     s := mp;
 
-  CreateDir(s + '\Sample');
-  hHandle := FileCreate(s + '\Sample\testfile_1.txt');
-  if hHandle <> -1 then
+  if FindVirtualFile('\', root) then
   begin
-    w := $0A0D;
-    s := 'This is a file header';
-    try
-      FileWrite(hHandle, AnsiString(S)[1], Length(S));
-      FileWrite(hHandle, w, 2);
-      s := '---------------------------';
-      FileWrite(hHandle, AnsiString(S)[1], Length(S));
-      FileWrite(hHandle, w, 2);
-    finally
-      FileClose(hHandle);
-    end;
+    vFullPathSymLink := VirtualFile.Create('full_path_reparse_toTestFile_1.txt');
+    root.AddFile(vFullPathSymLink);
+    vFullPathSymLink.CreateReparsePoint(s + '\Sample\TestFile_1.txt');
+  {
+    vRelativePathSymLink := VirtualFile.Create('relative_path_reparse_to_TestFile_1.txt');
+    root.AddFile(vRelativePathSymLink);
+    vRelativePathSymLink.CreateReparsePoint('.\Sample\TestFile_1.txt');
+  }
+    //CreateReparsePoint(mp + '\full_path_reparse_to_TestFile_1.txt', mp + '\Sample\TestFile_1.txt');
+    CreateReparsePoint(s + '\relative_path_reparse_to_TestFile_1.txt', '.\Sample\TestFile_1.txt');
   end;
   UpdateMountingPoints;
   Screen.Cursor := crDefault;
@@ -1267,6 +1454,63 @@ end;
 procedure TFormMemDrive.lstPointsClick(Sender: TObject);
 begin
   btnDeletePoint.Enabled := lstPoints.SelCount > 0;
+end;
+
+function TFormMemDrive.CreateReparsePoint(SourcePath, ReparsePath: string): Boolean;
+var
+  ReparseDataBuffer: PReparseDataBuffer;
+  SymLinkTarget: string;
+  Flags, Size, dwBytesReturned: DWORD;
+  TargetLen, SourceLen: WORD;
+  hFile: THandle;
+  FileSymLinkTargert: array[0..16384] of Char;
+  LinkName: PWideChar;
+  resNum: integer;
+begin
+  if ReparsePath.StartsWith('.') or ReparsePath.StartsWith('..') then
+  begin
+    SymLinkTarget := ReparsePath;
+    Flags := SYMLINK_FLAG_RELATIVE;
+  end
+  else
+  begin
+    SymLinkTarget := '\??\' + ReparsePath;
+    Flags := 0;
+  end;
+  TargetLen := SymLinkTarget.Length * 2;
+  Size := TargetLen + SizeOf(TReparseDataBuffer);
+  GetMem(ReparseDataBuffer, size);
+  FillChar(ReparseDataBuffer^, size, 0);
+  Move(PChar(SymLinkTarget)^, ReparseDataBuffer.PathBuffer, Length(SymLinkTarget) * SizeOf(Char)); 
+
+  with ReparseDataBuffer^ do
+  begin
+    ReparseTag := IO_REPARSE_TAG_SYMLINK;
+    ReparseDataLength := TargetLen + 12;
+    Reserved := 0;
+    Flags := Flags;
+    SubstituteNameLength := TargetLen;
+    PrintNameLength := 0;
+    PrintNameOffset := TargetLen;
+  end;
+ 
+  hFile := CreateFile(PChar(SourcePath),
+    GENERIC_WRITE or GENERIC_READ,
+    FILE_SHARE_READ or FILE_SHARE_WRITE,
+    nil,
+    CREATE_NEW,
+    FILE_FLAG_OPEN_REPARSE_POINT or FILE_FLAG_BACKUP_SEMANTICS,
+    0);
+
+  dwBytesReturned := 0;
+  Result := DeviceIoControl(hFile,
+    FSCTL_SET_REPARSE_POINT, ReparseDataBuffer,
+    ReparseDataBuffer^.ReparseDataLength + REPARSE_MOUNTPOINT_HEADER_SIZE,
+    nil,
+    0,
+    dwBytesReturned,
+    nil);
+  CloseHandle(hFile);
 end;
 
 initialization

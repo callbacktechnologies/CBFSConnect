@@ -10,6 +10,21 @@ uses
 type
   VirtualFile = class;
 
+ REPARSE_DATA_BUFFER = packed record
+    ReparseTag: DWORD;
+    ReparseDataLength: WORD;
+    Reserved: WORD;
+    SubstituteNameOffset: WORD;
+    SubstituteNameLength: WORD;
+    PrintNameOffset: WORD;
+    PrintNameLength: WORD;
+    Flags: DWORD;
+    PathBuffer: array [0..0] of WCHAR;
+ end;
+
+  TReparseDataBuffer = REPARSE_DATA_BUFFER;
+  PReparseDataBuffer = ^TReparseDataBuffer;
+
   DirectoryEnumerationContext = class
   private
     FFileList: TList;
@@ -36,6 +51,9 @@ type
     FAllocationSize: Int64;
     FSize: Int64;
     FAttributes: DWORD;
+    FReparseTag: DWORD;
+    FReparseBuffer: Pointer;
+    FReparseBufferLen: Integer;
     FCreationTime: TDateTime;
     FLastAccessTime: TDateTime;
     FLastWriteTime: TDateTime;
@@ -53,11 +71,15 @@ type
     procedure Write(var WriteBuf; Position: Int64; BytesToWrite: Integer; var BytesWritten: Cardinal);
     procedure Read(var ReadBuf; Position: Int64; BytesToRead: Integer; var BytesRead: Cardinal);
     procedure AddFile(vfile: VirtualFile);
+    procedure CreateReparsePoint(ReparsePath: string);
 
     //property
     property AllocationSize: Int64 read FAllocationSize write SetAllocationSize;
     property Size: Int64 read FSize write FSize;
     property Name: string read FName write FName;
+    property ReparseTag: DWORD read FReparseTag write FReparseTag;
+    property ReparsePointBuffer: Pointer read FReparseBuffer write FReparseBuffer;
+    property ReparseBufferLen: Integer read FReparseBufferLen write FReparseBufferLen;
     property CreationTime: TDateTime read FCreationTime write FCreationTime;
     property LastAccessTime: TDateTime read FLastAccessTime write FLastAccessTime;
     property LastWriteTime: TDateTime read FLastWriteTime write FLastWriteTime;
@@ -150,6 +172,8 @@ begin
   FAllocationSize := 0;
   FSize := 0;
   FName := Name;
+  FAttributes := FILE_ATTRIBUTE_NORMAL;
+  FReparseTag := 0;
   FEnumCtx := DirectoryEnumerationContext.Create;
 end;
 
@@ -158,11 +182,13 @@ begin
   System.SetLength(FStream, InitialSize);
   AllocationSize := InitialSize;
   FName := Name;
+  FReparseBuffer := nil;
 end;
 
 destructor VirtualFile.Destroy;
 begin
-
+  if FReparseBuffer <> nil then
+    FreeMem(FReparseBuffer);
 end;
 
 procedure VirtualFile.SetAllocationSize(Value: Int64);
@@ -189,6 +215,55 @@ procedure VirtualFile.AddFile(vfile: VirtualFile);
 begin
   FEnumCtx.AddFile(vfile);
   vfile.Parent := self;
+end;
+
+const
+  SYMLINK_FLAG_RELATIVE: DWORD = 1;
+  IO_REPARSE_TAG_SYMLINK: DWORD = $A000000C;
+
+procedure VirtualFile.CreateReparsePoint(ReparsePath: string);
+var
+  ReparseDataBuffer: PReparseDataBuffer;
+  SymLinkTarget: string;
+  Flags, Size: DWORD;
+  LinkLen: WORD;
+  FileSymLinkTargert: array[0..16384] of Char;
+begin
+  if FReparseBuffer <> nil then
+  begin
+    FreeMem(FReparseBuffer);
+    FReparseBuffer := nil;
+  end;
+  if ReparsePath.StartsWith('.') or ReparsePath.StartsWith('..') then
+  begin
+    SymLinkTarget := ReparsePath;
+    Flags := SYMLINK_FLAG_RELATIVE;
+  end
+  else
+  begin
+    SymLinkTarget := '\??\' + ReparsePath;
+    Flags := 0;
+  end;
+  LinkLen := SymLinkTarget.Length * 2;
+  Size := LinkLen + SizeOf(TReparseDataBuffer);
+  GetMem(ReparseDataBuffer, size);
+  FillChar(ReparseDataBuffer^, size, 0);
+  Move(PChar(SymLinkTarget)^, ReparseDataBuffer.PathBuffer, Length(SymLinkTarget) * SizeOf(Char));
+
+  with ReparseDataBuffer^ do
+  begin
+    ReparseTag := IO_REPARSE_TAG_SYMLINK;
+    ReparseDataLength := LinkLen + 12;
+    Reserved := 0;
+    Flags := Flags;
+    SubstituteNameLength := LinkLen;
+    PrintNameLength := 0;
+    PrintNameOffset := LinkLen;
+  end;
+
+  FReparseTag := IO_REPARSE_TAG_SYMLINK;
+  FAttributes := FILE_ATTRIBUTE_REPARSE_POINT;
+  FReparseBuffer := ReparseDataBuffer;
 end;
 
 procedure VirtualFile.Write(var WriteBuf; Position: Int64; BytesToWrite: Integer; var BytesWritten: Cardinal);

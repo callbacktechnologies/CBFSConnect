@@ -82,12 +82,23 @@ public:
     INT get_FileAttributes(VOID);
     VOID set_FileAttributes(INT Value);
 
+    __int64 get_ReparseTag(VOID);
+    VOID set_ReparseTag(__int64 Value);
+
+    PVOID get_ReparseBuffer(VOID);
+    VOID set_ReparseBuffer(PVOID Value);
+
+    WORD get_ReparseBufferLength(VOID);
+    VOID set_ReparseBufferLength(SHORT Value);
 
     //VOID set_Context(DirectoryEnumerationContext* Value);
     DirectoryEnumerationContext* get_Context(VOID);
     
     VirtualFile* get_Parent(VOID);
     VOID set_Parent(VirtualFile* Value);
+
+    VOID VirtualFile::DeleteReparsePoint();
+    VOID VirtualFile::CreateReparsePoint(LPWSTR ReparsePath);
 
 private:
     VirtualFile();    
@@ -104,7 +115,9 @@ private:
     FILETIME mCreationTime;
     FILETIME mLastAccessTime;
     FILETIME mLastWriteTime; 
-
+    __int64 mReparseTag;
+    PVOID mReparseBuffer;
+    WORD mReparseBufferLength;
 };
 
 #endif //#if !defined _VIRTUAL_FILE_H

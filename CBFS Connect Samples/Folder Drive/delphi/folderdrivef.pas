@@ -1,5 +1,5 @@
 (*
- * CBFS Connect 2022 Delphi Edition - Sample Project
+ * CBFS Connect 2024 Delphi Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -688,8 +688,8 @@ const
   QUOTA_INDEX_FILE = '\$Extend\$Quota:$Q:$INDEX_ALLOCATION';
 
 const
-  NTC_DIRECTORY_ENUM			= $7534;
-  NTC_NAMED_STREAMS_ENUM	= $6209;
+  NTC_DIRECTORY_ENUM            = $7534;
+  NTC_NAMED_STREAMS_ENUM    = $6209;
   NTC_FILE_LINKS_ENUM    = $1385;
 
 type
@@ -1971,8 +1971,8 @@ begin
             Windows.FindClose(nsc.hFile);
           FreeMem(nsc, sizeof(NAMED_STREAM_CONTEXT));
         end;
-		
-		Exit;
+        
+        Exit;
       end
       else
       begin

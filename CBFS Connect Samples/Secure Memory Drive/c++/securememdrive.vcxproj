@@ -20,7 +20,7 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectName>securememdrive</ProjectName>
-    <ProjectGuid>{2BB04907-BA27-4AD8-A0BA-084C735AB025}</ProjectGuid>
+    <ProjectGuid>{2BB04908-BA27-4AD8-A0BA-084C735AB025}</ProjectGuid>
     <VCTargetsPath Condition="'$(VCTargetsPath14)' != '' and '$(VSVersion)' == '' and $(VisualStudioVersion) == ''">$(VCTargetsPath14)</VCTargetsPath>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
@@ -98,7 +98,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <PreBuildEvent>
-      <Command>copy ..\..\lib\cbfsconnect22.dll $(OutDir)</Command>
+      <Command>copy ..\..\lib\cbfsconnect24.dll $(OutDir)</Command>
     </PreBuildEvent>
     <Midl>
       <TypeLibraryName>.\Debug/securememdrive.tlb</TypeLibraryName>
@@ -123,7 +123,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>../../lib/cbfsconnect22.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>../../lib/cbfsconnect24.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>.\Debug/securememdrive.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -138,7 +138,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <PreBuildEvent>
-      <Command>copy ..\..\lib64\cbfsconnect22.dll $(OutDir)</Command>
+      <Command>copy ..\..\lib64\cbfsconnect24.dll $(OutDir)</Command>
     </PreBuildEvent>
     <Midl>
       <TypeLibraryName>.\Debug/securememdrive.tlb</TypeLibraryName>
@@ -162,7 +162,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>../../lib64/cbfsconnect22.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>../../lib64/cbfsconnect24.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>.\Debug64/securememdrive.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -176,7 +176,7 @@
   </ItemDefinitionGroup>  
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <PreBuildEvent>
-      <Command>copy ..\..\lib\cbfsconnect22.dll $(OutDir)</Command>
+      <Command>copy ..\..\lib\cbfsconnect24.dll $(OutDir)</Command>
     </PreBuildEvent>
     <Midl>
       <TypeLibraryName>.\Release/securememdrive.tlb</TypeLibraryName>
@@ -202,7 +202,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>../../lib/cbfsconnect22.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>../../lib/cbfsconnect24.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>.\Release/securememdrive.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <ProgramDatabaseFile>.\Release/securememdrive.pdb</ProgramDatabaseFile>
@@ -216,7 +216,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <PreBuildEvent>
-      <Command>copy ..\..\lib64\cbfsconnect22.dll $(OutDir)</Command>
+      <Command>copy ..\..\lib64\cbfsconnect24.dll $(OutDir)</Command>
     </PreBuildEvent>
     <Midl>
       <TypeLibraryName>.\Release/securememdrive.tlb</TypeLibraryName>
@@ -242,7 +242,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>../../lib64/cbfsconnect22.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>../../lib64/cbfsconnect24.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>.\Release/securememdrive.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <ProgramDatabaseFile>.\Release/securememdrive.pdb</ProgramDatabaseFile>

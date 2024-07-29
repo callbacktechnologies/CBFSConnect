@@ -2,16 +2,16 @@
 The provided sample projects offer a concise yet effective demonstration of the components from CBFS Connect, showcasing their usage in a straightforward manner. While they are not intended to be complete applications, they serve as valuable illustrations of key features. To enhance clarity, error handling and checks are simplified, allowing users to focus on the core functionality.
 
 ## Requirements
-CBFS Connect 2022 libraries for the corresponding edition are required to run these samples.  Free download from: [https://www.callback.com/cbfsconnect](https://www.callback.com/cbfsconnect)
+CBFS Connect 2024 libraries for the corresponding edition are required to run these samples.  Free download from: [https://www.callback.com/cbfsconnect](https://www.callback.com/cbfsconnect)
 
 ## Reference Documentation
-* [Java Edition](https://cdn.callback.com/help/CCH/java/)
-* [.NET Edition](https://cdn.callback.com/help/CCH/cs/)
-* [Python Edition](https://cdn.callback.com/help/CCH/py/)
-* [C++ Edition](https://cdn.callback.com/help/CCH/cpp/)
-* [Delphi Edition](https://cdn.callback.com/help/CCH/dlp/)
-* [macOS Edition](https://cdn.callback.com/help/CCH/mac/)
-* [iOS Edition](https://cdn.callback.com/help/CCH/mac/)
+* [Java Edition](https://cdn.callback.com/help/CCJ/java/)
+* [.NET Edition](https://cdn.callback.com/help/CCJ/cs/)
+* [Python Edition](https://cdn.callback.com/help/CCJ/py/)
+* [C++ Edition](https://cdn.callback.com/help/CCJ/cpp/)
+* [Delphi Edition](https://cdn.callback.com/help/CCJ/dlp/)
+* [macOS Edition](https://cdn.callback.com/help/CCJ/mac/)
+* [iOS Edition](https://cdn.callback.com/help/CCJ/mac/)
 
 ## Sample Projects
 | Sample Project | Description |
@@ -21,7 +21,9 @@ CBFS Connect 2022 libraries for the corresponding edition are required to run th
 | [Encrypted Drive](./CBFS%20Connect%20Samples/Encrypted%20Drive) | Shows how to route virtual filesystem requests to disk with simple on-the-fly encryption. |
 | [FUSE Drive](./CBFS%20Connect%20Samples/FUSE%20Drive) | Demonstrates using the FUSE component to create a simple in-memory virtual drive with directory support. |
 | [Folder Drive](./CBFS%20Connect%20Samples/Folder%20Drive) | Shows how to route virtual filesystem requests to another locally accessible filesystem. |
-| [Memory Drive](./CBFS%20Connect%20Samples/Memory%20Drive) | A simple in-memory virtual drive with directory support. |
+| [Folder NFS](./CBFS%20Connect%20Samples/Folder%20NFS) | A virtual filesystem serving a local disk built with the NFS component. |
+| [Memory Drive](./CBFS%20Connect%20Samples/Memory%20Drive) | A simple in-memory virtual drive with directory support built with the CBFS component. |
+| [Memory NFS](./CBFS%20Connect%20Samples/Memory%20NFS) | A simple in-memory virtual drive with directory support built with the NFS component. |
 | [Secure Memory Drive](./CBFS%20Connect%20Samples/Secure%20Memory%20Drive) | A simple in-memory virtual drive with Windows Security (ACL) support. |
 
 ## Support

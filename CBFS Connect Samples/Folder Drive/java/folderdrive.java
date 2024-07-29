@@ -1,5 +1,5 @@
 /*
- * CBFS Connect 2022 Java Edition - Sample Project
+ * CBFS Connect 2024 Java Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
 
 import cbfsconnect.*;
 
-public class folderdrive extends JFrame implements CbfsEventListener {
+public class folderdrive extends JFrame implements CBFSEventListener {
     private static final String PRODUCT_GUID = "{713CC6CE-B3E2-4fd9-838D-E28F558F6866}";
     private static final int SECTOR_SIZE = 512;
     private static final int BUFFER_SIZE = 1024 * 1024; // 1MB
@@ -57,7 +57,7 @@ public class folderdrive extends JFrame implements CbfsEventListener {
 
     private static final Pattern DRIVE_LETTER_PATTERN = Pattern.compile("^[A-Za-z]:$");
 
-    private static Cbfs cbfs;
+    private static CBFS cbfs;
     private String cabFileLocation;
     private String rootDir;
     private boolean initialized;
@@ -194,7 +194,7 @@ public class folderdrive extends JFrame implements CbfsEventListener {
                 cbfs.initialize(PRODUCT_GUID);
                 cbfs.setSerializeAccess(true);
                 cbfs.setSerializeEvents(1);
-                cbfs.addCbfsEventListener(this);
+                cbfs.addCBFSEventListener(this);
                 initialized = true;
             }
             cbfs.createStorage();
@@ -283,13 +283,13 @@ public class folderdrive extends JFrame implements CbfsEventListener {
                 JOptionPane.showMessageDialog(this, "Mounting point not specified.", getTitle(), JOptionPane.ERROR_MESSAGE);
                 return;
             }
-			
-			if (mountingPoint.indexOf(";") >= 0)
-				cbfs.addMountingPoint(mountingPoint, Constants.STGMP_NETWORK, 0);
-			else
-				cbfs.addMountingPoint(mountingPoint, Constants.STGMP_MOUNT_MANAGER, 0);
+            
+            if (mountingPoint.indexOf(";") >= 0)
+                cbfs.addMountingPoint(mountingPoint, Constants.STGMP_NETWORK, 0);
+            else
+                cbfs.addMountingPoint(mountingPoint, Constants.STGMP_SIMPLE, 0);
 
-			updateMountingPoints();
+            updateMountingPoints();
         }
         catch (CBFSConnectException err) {
             JOptionPane.showMessageDialog(this,
@@ -577,7 +577,7 @@ public class folderdrive extends JFrame implements CbfsEventListener {
                 if (!acceptMountingPoint) {
                     JOptionPane.showMessageDialog(this,
                             "The path '" + path + "' format cannot be equal to the Network Mounting Point", getTitle(), JOptionPane.ERROR_MESSAGE);
-                    return path;
+                    return "";
                 }
                 int pos = path.indexOf(';');
                 if (pos != path.length() - 1) {
@@ -593,6 +593,7 @@ public class folderdrive extends JFrame implements CbfsEventListener {
                 if (!acceptMountingPoint) {
                     JOptionPane.showMessageDialog(this,
                             "The path '" + res + "' format cannot be equal to the Drive Letter", getTitle(), JOptionPane.ERROR_MESSAGE);
+                    return "";
                 }
                 return path;
             }
@@ -650,7 +651,7 @@ public class folderdrive extends JFrame implements CbfsEventListener {
     public static void main(String[] args) {
         try
         {
-            cbfs = new Cbfs();
+            cbfs = new CBFS();
         }
         catch (UnsatisfiedLinkError ex)
         {
@@ -664,24 +665,24 @@ public class folderdrive extends JFrame implements CbfsEventListener {
     }
 
     // -----------------------------------
-    // Implementation of CbfsEventListener
+    // Implementation of CBFSEventListener
 
-    public void canFileBeDeleted(CbfsCanFileBeDeletedEvent e) {
+    public void canFileBeDeleted(CBFSCanFileBeDeletedEvent e) {
         e.canBeDeleted = true;
     }
 
-    public void cleanupFile(CbfsCleanupFileEvent e) {
+    public void cleanupFile(CBFSCleanupFileEvent e) {
         // not needed in this demo
     }
 
-    public void closeDirectoryEnumeration(CbfsCloseDirectoryEnumerationEvent e) {
+    public void closeDirectoryEnumeration(CBFSCloseDirectoryEnumerationEvent e) {
         if (e.enumerationContext != 0) {
             Contexts.free(e.enumerationContext);
             e.enumerationContext = 0;
         }
     }
 
-    public void closeFile(CbfsCloseFileEvent e) {
+    public void closeFile(CBFSCloseFileEvent e) {
         // because FireAllOpenCloseEvents property is false by default, the event
         // handler will be called only once when all the handles for the file
         // are closed; so it's not needed to deal with file opening counter in this demo
@@ -694,19 +695,19 @@ public class folderdrive extends JFrame implements CbfsEventListener {
         }
     }
 
-    public void closeHardLinksEnumeration(CbfsCloseHardLinksEnumerationEvent e) {
+    public void closeHardLinksEnumeration(CBFSCloseHardLinksEnumerationEvent e) {
         // out of the demo's scope
     }
 
-    public void closeNamedStreamsEnumeration(CbfsCloseNamedStreamsEnumerationEvent e) {
+    public void closeNamedStreamsEnumeration(CBFSCloseNamedStreamsEnumerationEvent e) {
         // out of the demo's scope
     }
 
-    public void closeQuotasEnumeration(CbfsCloseQuotasEnumerationEvent e) {
+    public void closeQuotasEnumeration(CBFSCloseQuotasEnumerationEvent e) {
         // out of the demo's scope
     }
 
-    public void createFile(CbfsCreateFileEvent e) {
+    public void createFile(CBFSCreateFileEvent e) {
         boolean isDirectory = isBitSet(e.attributes, FILE_ATTRIBUTE_DIRECTORY);
         String name = rootDir + e.fileName;
         File file = new File(name);
@@ -733,11 +734,11 @@ public class folderdrive extends JFrame implements CbfsEventListener {
         e.fileContext = Contexts.alloc(context);
     }
 
-    public void createHardLink(CbfsCreateHardLinkEvent e) {
+    public void createHardLink(CBFSCreateHardLinkEvent e) {
         // out of the demo's scope
     }
 
-    public void deleteFile(CbfsDeleteFileEvent e) {
+    public void deleteFile(CBFSDeleteFileEvent e) {
         if (e.fileContext != 0) {
             FileContext context = (FileContext) Contexts.free(e.fileContext);
             if (context != null)
@@ -751,15 +752,15 @@ public class folderdrive extends JFrame implements CbfsEventListener {
             e.resultCode = ERROR_WRITE_FAULT;
     }
 
-    public void deleteReparsePoint(CbfsDeleteReparsePointEvent e) {
+    public void deleteReparsePoint(CBFSDeleteReparsePointEvent e) {
         // out of the demo's scope
     }
 
-    public void ejected(CbfsEjectedEvent e) {
+    public void ejected(CBFSEjectedEvent e) {
         // not needed in this demo
     }
 
-    public void enumerateDirectory(CbfsEnumerateDirectoryEvent e) {
+    public void enumerateDirectory(CBFSEnumerateDirectoryEvent e) {
         EnumContext context;
 
         if (e.restart && e.enumerationContext != 0) {
@@ -800,31 +801,31 @@ public class folderdrive extends JFrame implements CbfsEventListener {
         }
     }
 
-    public void enumerateHardLinks(CbfsEnumerateHardLinksEvent e) {
+    public void enumerateHardLinks(CBFSEnumerateHardLinksEvent e) {
         // out of the demo's scope
     }
 
-    public void enumerateNamedStreams(CbfsEnumerateNamedStreamsEvent e) {
+    public void enumerateNamedStreams(CBFSEnumerateNamedStreamsEvent e) {
         // out of the demo's scope
     }
 
-    public void error(CbfsErrorEvent e) {
+    public void error(CBFSErrorEvent e) {
         System.err.println(String.format("ERROR: [%d] %s", e.errorCode, e.description));
     }
 
-    public void flushFile(CbfsFlushFileEvent e) {
+    public void flushFile(CBFSFlushFileEvent e) {
         // not needed in this demo
     }
 
-    public void fsctl(CbfsFsctlEvent e) {
+    public void fsctl(CBFSFsctlEvent e) {
         // not needed in this demo
     }
 
-    public void getDefaultQuotaInfo(CbfsGetDefaultQuotaInfoEvent e) {
+    public void getDefaultQuotaInfo(CBFSGetDefaultQuotaInfoEvent e) {
         // out of the demo's scope
     }
 
-    public void getFileInfo(CbfsGetFileInfoEvent e) {
+    public void getFileInfo(CBFSGetFileInfoEvent e) {
         String name = rootDir + e.fileName;
         File file = new File(name);
         e.fileExists = file.exists();
@@ -839,64 +840,64 @@ public class folderdrive extends JFrame implements CbfsEventListener {
         e.lastWriteTime = new Date(file.lastModified());
     }
 
-    public void getFileNameByFileId(CbfsGetFileNameByFileIdEvent e) {
+    public void getFileNameByFileId(CBFSGetFileNameByFileIdEvent e) {
         // out of the demo's scope
     }
 
-    public void getFileSecurity(CbfsGetFileSecurityEvent e) {
+    public void getFileSecurity(CBFSGetFileSecurityEvent e) {
         // out of the demo's scope
     }
 
-    public void getReparsePoint(CbfsGetReparsePointEvent e) {
+    public void getReparsePoint(CBFSGetReparsePointEvent e) {
         // out of the demo's scope
     }
 
-    public void getVolumeId(CbfsGetVolumeIdEvent e) {
+    public void getVolumeId(CBFSGetVolumeIdEvent e) {
         e.volumeId = 0x12345678;
     }
 
-    public void getVolumeLabel(CbfsGetVolumeLabelEvent e) {
+    public void getVolumeLabel(CBFSGetVolumeLabelEvent e) {
         e.buffer = "Folder Drive";
     }
 
-    public void getVolumeObjectId(CbfsGetVolumeObjectIdEvent e) {
+    public void getVolumeObjectId(CBFSGetVolumeObjectIdEvent e) {
         // out of the demo's scope
     }
 
-    public void getVolumeSize(CbfsGetVolumeSizeEvent e) {
+    public void getVolumeSize(CBFSGetVolumeSizeEvent e) {
         File file = new File(rootDir);
         e.totalSectors = file.getTotalSpace() / SECTOR_SIZE;
         e.availableSectors = file.getFreeSpace() / SECTOR_SIZE;
     }
 
-    public void ioctl(CbfsIoctlEvent e) {
+    public void ioctl(CBFSIoctlEvent e) {
         // not needed in this demo
     }
 
-    public void isDirectoryEmpty(CbfsIsDirectoryEmptyEvent e) {
+    public void isDirectoryEmpty(CBFSIsDirectoryEmptyEvent e) {
         String name = rootDir + e.directoryName;
         File dir = new File(name);
         String[] files = dir.list();
         e.isEmpty = (files == null) || (files.length == 0);
     }
 
-    public void lockFile(CbfsLockFileEvent e) {
+    public void lockFile(CBFSLockFileEvent e) {
         // not needed in this demo
     }
 
-    public void mount(CbfsMountEvent e) {
+    public void mount(CBFSMountEvent e) {
         // not needed in this demo
     }
 
-    public void offloadReadFile(CbfsOffloadReadFileEvent e) {
+    public void offloadReadFile(CBFSOffloadReadFileEvent e) {
         // not needed in this demo
     }
 
-    public void offloadWriteFile(CbfsOffloadWriteFileEvent e) {
+    public void offloadWriteFile(CBFSOffloadWriteFileEvent e) {
         // not needed in this demo
     }
 
-    public void openFile(CbfsOpenFileEvent e) {
+    public void openFile(CBFSOpenFileEvent e) {
         FileContext context = (FileContext) Contexts.get(e.fileContext);
         if (context != null) {
             if (context.readOnly && isWritingRequested(e.desiredAccess)) {
@@ -935,11 +936,26 @@ public class folderdrive extends JFrame implements CbfsEventListener {
         e.fileContext = Contexts.alloc(context);
     }
 
-    public void queryQuotas(CbfsQueryQuotasEvent e) {
+    public void queryAllocatedRanges(CBFSQueryAllocatedRangesEvent cbfsQueryAllocatedRangesEvent)
+    {
         // out of the demo's scope
     }
 
-    public void readFile(CbfsReadFileEvent e) {
+    public void queryCompressionInfo(CBFSQueryCompressionInfoEvent cbfsQueryCompressionInfoEvent)
+    {
+        // out of the demo's scope
+    }
+
+    public void queryEa(CBFSQueryEaEvent cbfsQueryEaEvent)
+    {
+        // out of the demo's scope
+    }
+
+    public void queryQuotas(CBFSQueryQuotasEvent e) {
+        // out of the demo's scope
+    }
+
+    public void readFile(CBFSReadFileEvent e) {
         FileContext context = (FileContext) Contexts.get(e.fileContext);
         if (context == null) {
             e.resultCode = ERROR_INVALID_HANDLE;
@@ -978,7 +994,7 @@ public class folderdrive extends JFrame implements CbfsEventListener {
         }
     }
 
-    public void renameOrMoveFile(CbfsRenameOrMoveFileEvent e) {
+    public void renameOrMoveFile(CBFSRenameOrMoveFileEvent e) {
         String oldName = rootDir + e.fileName;
         String newName = rootDir + e.newFileName;
 
@@ -998,15 +1014,20 @@ public class folderdrive extends JFrame implements CbfsEventListener {
             e.resultCode = ERROR_WRITE_FAULT;
     }
 
-    public void setAllocationSize(CbfsSetAllocationSizeEvent e) {
+    public void setAllocationSize(CBFSSetAllocationSizeEvent e) {
         // not needed in this demo
     }
 
-    public void setDefaultQuotaInfo(CbfsSetDefaultQuotaInfoEvent e) {
+    public void setDefaultQuotaInfo(CBFSSetDefaultQuotaInfoEvent e) {
         // out of the demo's scope
     }
 
-    public void setFileSize(CbfsSetFileSizeEvent e) {
+    public void setEa(CBFSSetEaEvent cbfsSetEaEvent)
+    {
+        // out of the demo's scope
+    }
+
+    public void setFileSize(CBFSSetFileSizeEvent e) {
         if (e.fileContext == 0) {
             e.resultCode = ERROR_INVALID_HANDLE;
             return;
@@ -1026,7 +1047,7 @@ public class folderdrive extends JFrame implements CbfsEventListener {
         }
     }
 
-    public void setFileAttributes(CbfsSetFileAttributesEvent e) {
+    public void setFileAttributes(CBFSSetFileAttributesEvent e) {
         // unfortunately, before introducing java.nio in Java 7, JRE's means
         // to handle file attributes were very very limited and allowed to set
         // only "last modified time" for a file
@@ -1038,47 +1059,47 @@ public class folderdrive extends JFrame implements CbfsEventListener {
         }
     }
 
-    public void setFileSecurity(CbfsSetFileSecurityEvent e) {
+    public void setFileSecurity(CBFSSetFileSecurityEvent e) {
         // out of the demo's scope
     }
 
-    public void setQuotas(CbfsSetQuotasEvent e) {
+    public void setQuotas(CBFSSetQuotasEvent e) {
         // out of the demo's scope
     }
 
-    public void setReparsePoint(CbfsSetReparsePointEvent e) {
+    public void setReparsePoint(CBFSSetReparsePointEvent e) {
         // out of the demo's scope
     }
 
-    public void setValidDataLength(CbfsSetValidDataLengthEvent e) {
+    public void setValidDataLength(CBFSSetValidDataLengthEvent e) {
         // not needed in this demo
     }
 
-    public void setVolumeLabel(CbfsSetVolumeLabelEvent e) {
+    public void setVolumeLabel(CBFSSetVolumeLabelEvent e) {
         // not needed in this demo
     }
 
-    public void setVolumeObjectId(CbfsSetVolumeObjectIdEvent e) {
+    public void setVolumeObjectId(CBFSSetVolumeObjectIdEvent e) {
         // out of the demo's scope
     }
 
-    public void unlockFile(CbfsUnlockFileEvent e) {
+    public void unlockFile(CBFSUnlockFileEvent e) {
         // not needed in this demo
     }
 
-    public void unmount(CbfsUnmountEvent e) {
+    public void unmount(CBFSUnmountEvent e) {
         // not needed in this demo
     }
 
-    public void workerThreadCreation(CbfsWorkerThreadCreationEvent e) {
+    public void workerThreadCreation(CBFSWorkerThreadCreationEvent e) {
         // not needed in this demo
     }
 
-    public void workerThreadTermination(CbfsWorkerThreadTerminationEvent e) {
+    public void workerThreadTermination(CBFSWorkerThreadTerminationEvent e) {
         // not needed in this demo
     }
 
-    public void writeFile(CbfsWriteFileEvent e) {
+    public void writeFile(CBFSWriteFileEvent e) {
         FileContext context = (FileContext) Contexts.get(e.fileContext);
         if (context == null) {
             e.resultCode = ERROR_INVALID_HANDLE;
@@ -1115,7 +1136,11 @@ public class folderdrive extends JFrame implements CbfsEventListener {
         }
     }
 
-    // End of CbfsEventListener implementation
+    public void zeroizeFileRange(CBFSZeroizeFileRangeEvent cbfsZeroizeFileRangeEvent)
+    {
+        // out of the demo's scope
+    }
+    // End of CBFSEventListener implementation
     // --------------------------------------
 
     private enum DriverStatus {

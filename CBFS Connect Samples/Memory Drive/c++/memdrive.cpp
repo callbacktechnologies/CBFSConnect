@@ -1,5 +1,5 @@
 /*
- * CBFS Connect 2022 C++ Edition - Sample Project
+ * CBFS Connect 2024 C++ Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -12,6 +12,9 @@
  * usage and restrictions.
  */
 
+// Enable in order to support reparse points (symbolic links, mounting points, etc.) support. Also required for NFS sharing
+//#define SUPPORT_REPARSE_POINTS 0
+#define SUPPORT_REPARSE_POINTS 1
 #include <stdlib.h>
 #include <stdio.h>
 #include <strsafe.h>
@@ -21,6 +24,7 @@
 #include <Shlwapi.h>
 #include <filesystem>
 #include <string>
+#include <tchar.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -39,6 +43,18 @@
 #include "../../include/unicode/cbfs.h"
 #else
 #include "../../include/cbfs.h"
+#endif
+
+#ifndef FSCTL_SET_REPARSE_POINT
+#define FSCTL_SET_REPARSE_POINT         CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 41, METHOD_BUFFERED, FILE_SPECIAL_ACCESS) // REPARSE_DATA_BUFFER,
+#endif
+
+#ifndef FSCTL_GET_REPARSE_POINT
+#define FSCTL_GET_REPARSE_POINT         CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 42, METHOD_BUFFERED, FILE_ANY_ACCESS) // REPARSE_DATA_BUFFER
+#endif
+
+#ifndef FSCTL_DELETE_REPARSE_POINT
+#define FSCTL_DELETE_REPARSE_POINT      CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 43, METHOD_BUFFERED, FILE_SPECIAL_ACCESS) // REPARSE_DATA_BUFFER,
 #endif
 
 using namespace std;
@@ -70,6 +86,7 @@ BOOL GetParentVirtualDirectory(LPCTSTR FileName, VirtualFile*& vfile);
 LPCTSTR GetFileName(LPCTSTR fullpath);
 void RemoveAllFiles(VirtualFile* root);
 __int64 CalculateFolderSize(VirtualFile* root);
+VOID CreateReparsePoint(LPWSTR SourcePath, LPWSTR ReparsePath);
 
 class MemDriveCBFS : public CBFS
 {
@@ -229,10 +246,10 @@ public: // Events
 
         ExactMatch = (wcschr(e->Mask, '*') == NULL) && (wcschr(e->Mask, '?') == NULL);
 
-        if ((e->Restart || (e->EnumerationContext == NULL)) && !ExactMatch)
+        if (e->Restart || (e->EnumerationContext == NULL) || (ExactMatch != ((PENUM_INFO)(e->EnumerationContext))->ExactMatch))
             ResetEnumeration = TRUE;
 
-        if (e->Restart && (e->EnumerationContext != NULL))
+        if (ResetEnumeration && (e->EnumerationContext != NULL))
         {
             free((PENUM_INFO)(e->EnumerationContext));
 
@@ -255,6 +272,8 @@ public: // Events
             assert(find);
 
             pInfo->vfile = vdir;
+            pInfo->ExactMatch = ExactMatch;
+
         }
         else
         {
@@ -262,16 +281,15 @@ public: // Events
             vdir = pInfo->vfile;
         }
 
-        if (ResetEnumeration)
-            pInfo->Index = 0;
-
         if (pInfo->ExactMatch)
-            e->FileFound = FALSE;
-        else {
-
-            e->FileFound = ExactMatch ?
-                vdir->get_Context()->GetFile(e->Mask, vfile) : vdir->get_Context()->GetFile(pInfo->Index, vfile);
+        {
+            if (pInfo->Index > 0)
+                e->FileFound = false;
+            else
+                e->FileFound = vdir->get_Context()->GetFile(e->Mask, vfile);
         }
+        else
+            e->FileFound = vdir->get_Context()->GetFile(pInfo->Index, vfile);
 
         if (e->FileFound)
         {
@@ -293,12 +311,13 @@ public: // Events
 
                 *(e->pAttributes) = vfile->get_FileAttributes();
 
+                if ((*(e->pAttributes) & FILE_ATTRIBUTE_REPARSE_POINT) == FILE_ATTRIBUTE_REPARSE_POINT)
+                    *(e->pReparseTag) = vfile->get_ReparseTag();
                 pInfo->vfile = vdir;
             }
         }
 
-        ++pInfo->Index;
-        pInfo->ExactMatch = ExactMatch;
+        pInfo->Index++;        
 
         return 0;
     }
@@ -327,6 +346,8 @@ public: // Events
             *(e->pFileId) = 0;
 
             *(e->pAttributes) = vfile->get_FileAttributes();
+
+            *(e->pReparseTag) = vfile->get_ReparseTag();
         }
 
         return 0;
@@ -487,6 +508,97 @@ public: // Events
         DWORD BytesWritten;
         vfile->Write((LPVOID)e->Buffer, (LONG)e->Position, (INT)e->BytesToWrite, &BytesWritten);
         *(e->pBytesWritten) = BytesWritten;
+
+        return 0;
+    }
+
+    INT FireGetReparsePoint(CBFSGetReparsePointEventParams* e) override
+    {
+        VirtualFile* vfile = NULL;
+        WORD lengthReturned = 0;
+
+        if (!SUPPORT_REPARSE_POINTS)
+            return 0;
+
+        if (e->FileContext != NULL)
+        {
+            vfile = (VirtualFile*)(e->FileContext);
+        }
+        else
+        {
+            if (!FindVirtualFile(e->FileName, vfile))
+            {
+                e->ResultCode = ERROR_FILE_NOT_FOUND;
+                return 0;
+            }
+        }
+
+        if ((vfile->get_FileAttributes() & FILE_ATTRIBUTE_REPARSE_POINT) != FILE_ATTRIBUTE_REPARSE_POINT)
+        {
+            e->ResultCode = ERROR_NOT_A_REPARSE_POINT;
+            return 0;
+        }
+        lengthReturned = min(e->ReparseBufferLength, vfile->get_ReparseBufferLength());
+
+        CopyMemory(e->ReparseBuffer, vfile->get_ReparseBuffer(), lengthReturned);
+
+        if (vfile->get_ReparseBufferLength() > e->ReparseBufferLength)
+        {
+            e->ResultCode = ERROR_MORE_DATA;
+            return 0;
+        }
+        e->ReparseBufferLength = lengthReturned;
+
+        return 0;
+    }
+
+
+    INT FireSetReparsePoint(CBFSSetReparsePointEventParams* e) override
+    {
+        if (!SUPPORT_REPARSE_POINTS)
+            return 0;
+
+        VirtualFile* vfile = (VirtualFile*)(e->FileContext);
+        assert(vfile);
+
+        if (vfile->get_ReparseBuffer() != NULL)
+        {
+            if (vfile->get_ReparseTag() != e->ReparseTag)
+            {
+                e->ResultCode = ERROR_REPARSE_TAG_MISMATCH;
+                return 0;
+            }
+        }
+
+        PVOID buffer = malloc(e->ReparseBufferLength);
+        CopyMemory(buffer, e->ReparseBuffer, e->ReparseBufferLength);
+        vfile->set_ReparseBuffer(buffer);
+        vfile->set_ReparseBufferLength(e->ReparseBufferLength);
+        vfile->set_FileAttributes(vfile->get_FileAttributes() | FILE_ATTRIBUTE_REPARSE_POINT);
+        vfile->set_ReparseTag(e->ReparseTag);
+
+        return 0;
+    }
+
+    INT FireDeleteReparsePoint(CBFSDeleteReparsePointEventParams* e) override
+    {
+        if (!SUPPORT_REPARSE_POINTS)
+            return 0;
+
+        VirtualFile* vfile = (VirtualFile*)(e->FileContext);
+        assert(vfile);
+
+        if ((vfile->get_FileAttributes() & FILE_ATTRIBUTE_REPARSE_POINT) != FILE_ATTRIBUTE_REPARSE_POINT)
+        {
+            e->ResultCode = ERROR_NOT_A_REPARSE_POINT;
+            return 0;
+        }
+
+        PVOID buffer = vfile->get_ReparseBuffer();
+        vfile->set_ReparseBuffer(NULL);
+        assert(buffer);
+        free(buffer);
+        vfile->set_FileAttributes(vfile->get_FileAttributes() & FILE_ATTRIBUTE_REPARSE_POINT);
 
         return 0;
     }
@@ -654,7 +766,7 @@ cbt_string ConvertRelativePathToAbsolute(const cbt_string& path, bool acceptMoun
         if (isNetworkMountingPoint) {
             if (!acceptMountingPoint) {
                 sout << L"The path '" << path << L"' format cannot be equal to the Network Mounting Point" << std::endl;
-                return path;
+                return _T("");
             }
             size_t pos = path.find(L";");
             if (pos != cbt_string::npos) {
@@ -670,7 +782,8 @@ cbt_string ConvertRelativePathToAbsolute(const cbt_string& path, bool acceptMoun
 #ifdef _WIN32
             if (IsDriveLetter(res)) {
                 if (!acceptMountingPoint) {
-                    sout << L"The path '" << res << L"' format cannot be equal to the Drive Letter" << std::endl;
+                    sout << L"The path '" << res << L"' cannot be equal to the drive letter" << std::endl;
+                    return _T("");
                 }
                 return path;
             }
@@ -678,14 +791,14 @@ cbt_string ConvertRelativePathToAbsolute(const cbt_string& path, bool acceptMoun
             const char pathSeparator = '\\';
             if (_wgetcwd(currentDir, _MAX_PATH) == nullptr) {
                 sout << "Error getting current directory." << std::endl;
-                return L"";
+                return _T("");
             }
 #else
             char currentDir[PATH_MAX];
             const char pathSeparator = '/';
             if (getcwd(currentDir, sizeof(currentDir)) == nullptr) {
                 sout << "Error getting current directory." << std::endl;
-                return "";
+                return _T("");
             }
 #endif
             cbt_string currentDirStr(currentDir);
@@ -700,6 +813,7 @@ cbt_string ConvertRelativePathToAbsolute(const cbt_string& path, bool acceptMoun
     }
     else {
         sout << L"Error: The input path is empty." << std::endl;
+        return _T("");
     }
     return path;
 }
@@ -739,6 +853,10 @@ int main(int argc, char* argv[]) {
                         argi++;
                         if (argi < argc) {
                             cbt_string opt_icon_path_wstr = ConvertRelativePathToAbsolute(a2w(argv[argi]));
+                            if (opt_icon_path_wstr.empty()) {
+                                printf("Error: Invalid Icon Path\n");
+                                exit(1);
+                            }
                             opt_icon_path = wcsdup(opt_icon_path_wstr.c_str());
                         }
                     }
@@ -754,6 +872,10 @@ int main(int argc, char* argv[]) {
                         if (argi < argc) {
                             printf("Installing drivers from '%s'\n", argv[argi]);
                             cbt_string driver_path_wstr = ConvertRelativePathToAbsolute(a2w(argv[argi]));
+                            if (driver_path_wstr.empty()) {
+                                printf("Error: Invalid Driver Path\n");
+                                exit(1);
+                            }
                             LPCWSTR driver_path = wcsdup(driver_path_wstr.c_str());
                             drv_reboot = cbfs.Install(driver_path, g_Guid, NULL,
                                 cbcConstants::MODULE_DRIVER | cbcConstants::MODULE_HELPER_DLL,
@@ -792,16 +914,20 @@ int main(int argc, char* argv[]) {
                 }
 
                 if (opt_icon_path) {
-                    retVal = cbfs.RegisterIcon(opt_icon_path, g_Guid, icon_id);
-                    if (0 != retVal) {
-                        fprintf(stderr, "Error: %s", cbfs.GetLastError());
-                        return retVal;
+                    if (cbfs.RegisterIcon(opt_icon_path, g_Guid, icon_id))
+                    {
+                        printf("The icon installed successfully, reboot is required for the icon to be displayed\n");
                     }
                 }
 
                 cbt_string mount_point_wstr = ConvertRelativePathToAbsolute(a2w(argv[argi]), true);
+                if (mount_point_wstr.empty()) {
+                    printf("Error: Invalid Mounting Point Path\n");
+                    exit(1);
+                }
                 mount_point = wcsdup(mount_point_wstr.c_str());
 
+                cbfs.SetUseReparsePoints(SUPPORT_REPARSE_POINTS);
                 retVal = cbfs.CreateStorage();
                 if (0 != retVal) {
                     fprintf(stderr, "Error: %s", cbfs.GetLastError());
@@ -815,6 +941,17 @@ int main(int argc, char* argv[]) {
                     g_DiskContext = new VirtualFile(L"\\");
                 }
 
+                VirtualFile* vDir = new VirtualFile(L"Sample");
+                vDir->set_FileAttributes(FILE_ATTRIBUTE_DIRECTORY);
+                g_DiskContext->AddFile(vDir);
+
+                VirtualFile* vFile = new VirtualFile(L"TestFile_1.txt");
+                vFile->set_FileAttributes(FILE_ATTRIBUTE_NORMAL);
+                LPSTR header = "This is the\nheader for the file.\n-------------------\n";
+                DWORD written = 0;
+                vFile->Write(header, 0, ((SHORT)strlen(header) + 1), &written);
+                vDir->AddFile(vFile);
+
                 retVal = cbfs.MountMedia(0);
                 if (0 == retVal)
                     printf("Media inserted in storage\n");
@@ -826,20 +963,36 @@ int main(int argc, char* argv[]) {
 #ifdef WIN32
                 if (opt_local)
                     flags |= cbcConstants::STGMP_LOCAL;
-				else
+                else
 #endif
-                if (opt_network)
-                    flags = cbcConstants::STGMP_NETWORK;
+                    if (opt_network)
+                        flags = cbcConstants::STGMP_NETWORK;
 #ifdef WIN32
-                else
-                    flags |= cbcConstants::STGMP_MOUNT_MANAGER;
+                    else
+                        flags |= cbcConstants::STGMP_MOUNT_MANAGER;
 #else
-                else
-                    flags |= cbcConstants::STGMP_SIMPLE;
+                    else
+                        flags |= cbcConstants::STGMP_SIMPLE;
 #endif
-                if (cbfs.AddMountingPoint(mount_point, flags, 0) == 0)
-                    mounted = 1;
+                if (cbfs.AddMountingPoint(mount_point, flags, 0) == 0) {
 
+                    mounted = 1;
+                    VirtualFile* root = NULL;
+                    if (FindVirtualDirectory(L"\\", root)) {
+                   
+                        VirtualFile* vFullPathSymLink = new VirtualFile(L"full_path_reparse_to_TestFile_1.txt");
+                        root->AddFile(vFullPathSymLink);
+                        vFullPathSymLink->CreateReparsePoint(L".\\Sample\\TestFile_1.txt");
+                    }
+                    LPWSTR destPath = L".\\Sample\\TestFile_1.txt";
+                    LPWSTR srcFile = L"\\relative_path_reparse_to_TestFile_1.txt";
+
+                    LPWSTR srcPath = (LPWSTR)malloc((wcslen(mount_point) + wcslen(srcFile) + 1) * sizeof(WCHAR));
+                    wcscpy(srcPath, mount_point);
+                    wcscat(srcPath, srcFile);
+                    CreateReparsePoint(srcPath, destPath);
+                    free(srcPath);
+                }
                 break;
             }
         }
@@ -1024,6 +1177,91 @@ __int64 CalculateFolderSize(VirtualFile* root)
         DiskSize += (vfile->get_AllocationSize() + cbfs.GetSectorSize() - 1) & ~(cbfs.GetSectorSize() - 1);
     }
     return DiskSize;
+} 
+ 
+//-----------------------------------------------------------------------------------------------------------
+
+#define PATH_GLOBAL_PREFIX  L"\\??\\"
+#define SYMLINK_FLAG_RELATIVE  0x00000001 //The substitute name is a path name relative to the directory containing the symbolic link.
+
+typedef struct _REPARSE_DATA_BUFFER {
+    ULONG  ReparseTag;
+    USHORT ReparseDataLength;
+    USHORT Reserved;
+    union {
+        struct {
+            USHORT SubstituteNameOffset;
+            USHORT SubstituteNameLength;
+            USHORT PrintNameOffset;
+            USHORT PrintNameLength;
+            ULONG  Flags;
+            WCHAR  PathBuffer[1];
+        } SymbolicLinkReparseBuffer;
+        struct {
+            USHORT SubstituteNameOffset;
+            USHORT SubstituteNameLength;
+            USHORT PrintNameOffset;
+            USHORT PrintNameLength;
+            WCHAR  PathBuffer[1];
+        } MountPointReparseBuffer;
+        struct {
+            UCHAR DataBuffer[1];
+        } GenericReparseBuffer;
+    } DUMMYUNIONNAME;
+} REPARSE_DATA_BUFFER, *PREPARSE_DATA_BUFFER;
+
+VOID CreateReparsePoint(LPWSTR SourcePath, LPWSTR ReparsePath)
+{
+    PREPARSE_DATA_BUFFER reparseDataBuffer = NULL;
+    SHORT linkLength = 0, reparseDataBufferLength = 0;
+    BOOL relative = FALSE;
+    LPWSTR reparseTarget = NULL;
+    DWORD nBytesReturned = 0;
+
+    if (ReparsePath[0] == '.')
+    {
+        reparseTarget = ReparsePath;
+        relative = TRUE;
+    }
+    else
+    {
+        reparseTarget = (LPWSTR)malloc((sizeof(PATH_GLOBAL_PREFIX) + wcslen(ReparsePath) + 1) * sizeof(WCHAR));
+        wcscpy(reparseTarget, PATH_GLOBAL_PREFIX);
+        wcscat(reparseTarget, ReparsePath);
+    }
+    linkLength = (SHORT)wcslen(reparseTarget) * sizeof(WCHAR);
+    reparseDataBufferLength = FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + linkLength;
+
+    reparseDataBuffer = (PREPARSE_DATA_BUFFER)malloc(reparseDataBufferLength);
+
+    reparseDataBuffer->ReparseTag = IO_REPARSE_TAG_SYMLINK;
+    reparseDataBuffer->ReparseDataLength = reparseDataBufferLength - FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer);
+    reparseDataBuffer->Reserved = 0;
+    reparseDataBuffer->SymbolicLinkReparseBuffer.Flags = relative ? SYMLINK_FLAG_RELATIVE : 0;
+    reparseDataBuffer->SymbolicLinkReparseBuffer.SubstituteNameLength = linkLength;
+    reparseDataBuffer->SymbolicLinkReparseBuffer.SubstituteNameOffset = 0;
+    reparseDataBuffer->SymbolicLinkReparseBuffer.PrintNameLength = 0;
+    reparseDataBuffer->SymbolicLinkReparseBuffer.PrintNameOffset = linkLength;
+    wcscpy(reparseDataBuffer->SymbolicLinkReparseBuffer.PathBuffer, reparseTarget);
+
+    HANDLE hFile = CreateFile(SourcePath,
+        GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        NULL,
+        CREATE_NEW,
+        FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
+        NULL);
+
+    BOOL ioResult = DeviceIoControl(hFile,
+        FSCTL_SET_REPARSE_POINT,
+        reparseDataBuffer,
+        reparseDataBufferLength,
+        NULL,
+        0,
+        &nBytesReturned,
+        NULL);
+    if (hFile != INVALID_HANDLE_VALUE)
+        CloseHandle(hFile);
 }
  
  

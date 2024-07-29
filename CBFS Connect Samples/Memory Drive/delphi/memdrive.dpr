@@ -1,5 +1,5 @@
 (*
- * CBFS Connect 2022 Delphi Edition - Sample Project
+ * CBFS Connect 2024 Delphi Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 

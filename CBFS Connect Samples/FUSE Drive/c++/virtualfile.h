@@ -32,6 +32,8 @@ typedef char fuse_char;
 #define fuse_stoi(str) atoi(str)
 #endif
 
+#include "cbfsconnectcommon.h"
+
 class VirtualFile;//forward declaration
 
 //class DirectoryEnumerationContext

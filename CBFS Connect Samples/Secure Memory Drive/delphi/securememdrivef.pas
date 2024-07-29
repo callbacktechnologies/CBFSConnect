@@ -1,5 +1,5 @@
 (*
- * CBFS Connect 2022 Delphi Edition - Sample Project
+ * CBFS Connect 2024 Delphi Edition - Sample Project
  *
  * This sample project demonstrates the usage of CBFS Connect in a 
  * simple, straightforward way. It is not intended to be a complete 
@@ -558,7 +558,7 @@ begin
       while true do
       begin
         FileFound := vdir.Context.GetFile(pInfo.Index, vfile);
-      	if (not FileFound) or FCbFs.FileMatchesMask(Mask, vfile.Name, false) then
+          if (not FileFound) or FCbFs.FileMatchesMask(Mask, vfile.Name, false) then
           break;
         // If the file was picked but its name didn't match the mask, pick the next file
         Inc(pInfo.Index);

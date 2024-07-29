@@ -21,6 +21,9 @@ VirtualFile::VirtualFile(LPCWSTR Name)
     ,mAttributes(0)
     ,mParent(NULL)
     ,mName(NULL)
+    , mReparseTag(0)
+    , mReparseBuffer(NULL)
+    , mReparseBufferLength(0)
 {
     Initializer(Name);
 }
@@ -31,6 +34,9 @@ VirtualFile::VirtualFile(LPCWSTR Name, INT InitialSize)
     ,mAttributes(0)  
     ,mParent(NULL)
     ,mName(NULL)
+    ,mReparseTag(0)
+    ,mReparseBuffer(NULL)
+    ,mReparseBufferLength(0)
 {
     mStream = malloc(InitialSize);
     set_AllocationSize(InitialSize);
@@ -46,6 +52,10 @@ VirtualFile::~VirtualFile()
     if(mName)
     {
         free(mName);
+    }
+    if (mReparseBuffer)
+    {
+        free(mReparseBuffer);
     }
 }
 
@@ -120,6 +130,36 @@ VOID VirtualFile::set_FileAttributes(INT Value)
         mAttributes = Value;
 }
 
+__int64 VirtualFile::get_ReparseTag(VOID)
+{
+    return mReparseTag;
+}
+
+VOID VirtualFile::set_ReparseTag(__int64 Value)
+{
+    mReparseTag = Value;
+}
+
+PVOID VirtualFile::get_ReparseBuffer(VOID)
+{
+    return mReparseBuffer;
+}
+
+VOID VirtualFile::set_ReparseBuffer(PVOID Value)
+{
+    mReparseBuffer = Value;
+}
+
+WORD VirtualFile::get_ReparseBufferLength(VOID)
+{
+    return mReparseBufferLength;
+}
+
+VOID VirtualFile::set_ReparseBufferLength(SHORT Value)
+{
+    mReparseBufferLength = Value;
+}
+
 VirtualFile* VirtualFile::get_Parent(VOID)
 {
     return (mParent);
@@ -191,6 +231,91 @@ VOID VirtualFile::Read(PVOID ReadBuf, LONG Position, INT BytesToRead, PDWORD Byt
         *BytesRead = MaxRead;
     }
 }
+
+#define PATH_GLOBAL_PREFIX  L"\\??\\"
+#define SYMLINK_FLAG_RELATIVE  0x00000001 //The substitute name is a path name relative to the directory containing the symbolic link.
+
+typedef struct _REPARSE_DATA_BUFFER {
+    ULONG  ReparseTag;
+    USHORT ReparseDataLength;
+    USHORT Reserved;
+    union {
+        struct {
+            USHORT SubstituteNameOffset;
+            USHORT SubstituteNameLength;
+            USHORT PrintNameOffset;
+            USHORT PrintNameLength;
+            ULONG  Flags;
+            WCHAR  PathBuffer[1];
+        } SymbolicLinkReparseBuffer;
+        struct {
+            USHORT SubstituteNameOffset;
+            USHORT SubstituteNameLength;
+            USHORT PrintNameOffset;
+            USHORT PrintNameLength;
+            WCHAR  PathBuffer[1];
+        } MountPointReparseBuffer;
+        struct {
+            UCHAR DataBuffer[1];
+        } GenericReparseBuffer;
+    } DUMMYUNIONNAME;
+} REPARSE_DATA_BUFFER, *PREPARSE_DATA_BUFFER;
+
+VOID VirtualFile::CreateReparsePoint(LPWSTR ReparsePath)
+{
+
+    PREPARSE_DATA_BUFFER reparseDataBuffer = NULL;
+    SHORT linkLength = 0, reparseDataBufferLength = 0;
+    BOOL relative = FALSE;
+    LPWSTR reparseTarget = NULL;
+
+    if (ReparsePath[0] == '.')
+    {
+        reparseTarget = ReparsePath;
+        relative = TRUE;
+    }
+    else
+    {
+        reparseTarget = (LPWSTR)malloc((sizeof(PATH_GLOBAL_PREFIX) + wcslen(ReparsePath) + 1) * sizeof(WCHAR));
+        wcscpy(reparseTarget, PATH_GLOBAL_PREFIX);
+        wcscat(reparseTarget, ReparsePath);
+    }
+    linkLength = (SHORT)wcslen(reparseTarget) * sizeof(WCHAR);
+    reparseDataBufferLength = FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + linkLength;
+
+    reparseDataBuffer = (PREPARSE_DATA_BUFFER)malloc(reparseDataBufferLength);
+    
+    reparseDataBuffer->ReparseTag = IO_REPARSE_TAG_SYMLINK;
+    reparseDataBuffer->ReparseDataLength = reparseDataBufferLength - FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer);
+    reparseDataBuffer->Reserved = 0;
+    reparseDataBuffer->SymbolicLinkReparseBuffer.Flags = relative ? SYMLINK_FLAG_RELATIVE : 0;
+    reparseDataBuffer->SymbolicLinkReparseBuffer.SubstituteNameOffset = 0;
+    reparseDataBuffer->SymbolicLinkReparseBuffer.SubstituteNameLength = linkLength;
+    reparseDataBuffer->SymbolicLinkReparseBuffer.PrintNameLength = 0;
+    reparseDataBuffer->SymbolicLinkReparseBuffer.PrintNameOffset = linkLength;
+    wcscpy(reparseDataBuffer->SymbolicLinkReparseBuffer.PathBuffer, reparseTarget);
+    if (!relative)
+        free(reparseTarget);
+
+    mReparseBuffer = reparseDataBuffer;
+    mReparseBufferLength = reparseDataBufferLength;
+    mReparseTag = reparseDataBuffer->ReparseTag;
+    mAttributes = FILE_ATTRIBUTE_REPARSE_POINT;
+}
+
+VOID VirtualFile::DeleteReparsePoint()
+{
+    if (mReparseBuffer != NULL)
+    {
+        free(mReparseBuffer);
+        mReparseBuffer = NULL;
+    }
+    mReparseTag = 0;
+    mAttributes &= FILE_ATTRIBUTE_REPARSE_POINT;
+    if (mAttributes == 0)
+        mAttributes = FILE_ATTRIBUTE_NORMAL;
+}
+
 
 VOID VirtualFile::Initializer(LPCWSTR Name)
 {
